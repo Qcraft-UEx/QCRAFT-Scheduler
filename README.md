@@ -20,3 +20,7 @@ The scheduler has the following main functions:
 4. **Combined Circuit Execution:** Once the circuits have been combined, the scheduler schedules the execution of the combined circuit in the quantum machine. The results of this execution are a combination of the results of each individual circuit.
 
 5. **Unshceduling of the results:** These results go through a unscheduling process to divide the results by user, and are stored in a database. 
+
+## License
+AutoSchedulQ is licensed under the [MIT License](https://github.com/Qcraft-UEx/QCRAFT/blob/main/LICENSE)
+
