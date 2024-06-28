@@ -22,5 +22,5 @@ The scheduler has the following main functions:
 5. **Unshceduling of the results:** These results go through a unscheduling process to divide the results by user, and are stored in a database. 
 
 ## License
-AutoSchedulQ is licensed under the [MIT License](https://github.com/Qcraft-UEx/QCRAFT/blob/main/LICENSE)
+QCRAFT Scheduler is licensed under the [MIT License](https://github.com/Qcraft-UEx/QCRAFT/blob/main/LICENSE)
 
