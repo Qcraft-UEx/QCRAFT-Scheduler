@@ -10,14 +10,14 @@ circuit = QuantumCircuit(qreg_q, creg_c)
 
 gate_machines_arn= {"local":"local", "ibm_brisbane":"ibm_brisbane", "ibm_osaka":"ibm_osaka", "ibm_kyoto":"ibm_kyoto", "simulator_stabilizer":"simulator_stabilizer", "simulator_mps":"simulator_mps", "simulator_extended_stabilizer":"simulator_extended_stabilizer", "simulator_statevector":"simulator_statevector"}
 
-circuit.x(qreg_q[3])  # ancilla qubit is now qreg_q[3]
-circuit.h(qreg_q[3])  # ancilla qubit is now qreg_q[3]
+circuit.x(qreg_q[3]) 
+circuit.h(qreg_q[3])  
 circuit.h(qreg_q[0])
 circuit.h(qreg_q[1])
 circuit.h(qreg_q[2])
-circuit.cx(qreg_q[0], qreg_q[3])  # ancilla qubit is now qreg_q[3]
-circuit.cx(qreg_q[1], qreg_q[3])  # ancilla qubit is now qreg_q[3]
-circuit.cx(qreg_q[2], qreg_q[3])  # ancilla qubit is now qreg_q[3]
+circuit.cx(qreg_q[0], qreg_q[3])  
+circuit.cx(qreg_q[1], qreg_q[3])  
+circuit.cx(qreg_q[2], qreg_q[3]) 
 circuit.h(qreg_q[0])
 circuit.h(qreg_q[1])
 circuit.h(qreg_q[2])
