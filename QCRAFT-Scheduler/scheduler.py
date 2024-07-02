@@ -10,43 +10,101 @@ import logging
 import uuid
 import re
 from scheduler_policies import SchedulerPolicies
-from executeCircuitIBM import retrieve_result_ibm
-from executeCircuitAWS import retrieve_result_aws
+from executeCircuitIBM import retrieve_result_ibm, code_to_circuit_ibm, get_transpiled_circuit_depth_ibm, load_account_ibm, obtain_machine
+from executeCircuitAWS import retrieve_result_aws, code_to_circuit_aws
 import os
 from threading import Thread, Lock
 from flask import jsonify
 from pymongo import MongoClient
 from bson.json_util import dumps
+from dotenv import load_dotenv
 
 class Scheduler:
+    """
+    Class to manage the petitions of quantum circuit scheduling.
+
+    Methods
+    -------
+    run()
+        Run the scheduler
+
+    handle_line(line,ids_file,lock)
+        Handle the line of the file with the ids to retrieve the result of pending tasks
+
+    check_ids()
+        Check the ids in the file
+
+    select_policy(url, num_qubits, shots, user, circuit_name, maxDepth, provider, policy)
+        Select the policy to execute the circuit
+
+    unschedule_route()
+        Route to unschedule a circuit
+
+    unscheduler(counts, shots, provider, qb, users, circuit_names)
+        Unschedule a circuit
+
+    store_url()
+        Sends the Quirk URL of the circuit to the policy service
+
+    store_url_circuit()
+        Sends the GitHub URL of the circuit to the policy service
+
+    sendResults()
+        Send the results of the circuit execution
+    
+    """
     def __init__(self):
+        """
+        Initialize the scheduler
+
+        Attributes:
+            app (Flask): The Flask app
+            ports (dict): The ports used by the scheduler
+            max_qubits (int): The maximum number of qubits
+            client (MongoClient): The MongoDB client
+            db (MongoClient): The MongoDB database
+            collection (MongoClient): The MongoDB collection
+            translator (str): The URL of the translator
+            policy_service (str): The URL of the policy service
+            scheduler_policies (SchedulerPolicies): The scheduler policies
+            result_lock (Lock): The lock for the results
+        """
         self.app = Flask(__name__)
         self.ports = {}
 
-        self.app.config['HOST'] = 'localhost'
-        self.app.config['PORT'] = 8082
-        self.app.config['TRANSLATOR'] = 'localhost'
-        self.app.config['TRANSLATOR_PORT'] = 8081
-        self.app.config['DB'] = 'localhost'
-        self.app.config['DB_PORT'] = 27017
+        dotenv_path = os.path.join(os.path.dirname(__file__), 'db', '.env')
+        load_dotenv(dotenv_path)
+
+        self.app.config['HOST'] = os.getenv('HOST')
+        self.app.config['PORT'] = os.getenv('PORT')
+        self.app.config['TRANSLATOR'] = os.getenv('TRANSLATOR')
+        self.app.config['TRANSLATOR_PORT'] = os.getenv('TRANSLATOR_PORT')
+        self.app.config['DB'] = os.getenv('DB')
+        self.app.config['DB_PORT'] = os.getenv('DB_PORT')
         
         self.max_qubits = 29
         
-        self.client = MongoClient('mongodb://root:example@localhost:27017/')
-        self.db = self.client['Scheduler']
-        self.collection = self.db['Scheduler']
+        mongo_uri = f"mongodb://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{self.app.config['DB']}:{self.app.config['DB_PORT']}/"
+        self.client = MongoClient(mongo_uri)
+        self.db = self.client[os.getenv('DB_NAME')]
+        self.collection = self.db[os.getenv('DB_COLLECTION')]
 
         self.translator = f"http://{self.app.config['TRANSLATOR']}:{self.app.config['TRANSLATOR_PORT']}/code/"
         self.policy_service = f"http://{self.app.config['HOST']}:{self.app.config['PORT']}/service/"
 
         self.scheduler_policies = SchedulerPolicies(self.app)
 
+        self.transpilation_machine = self.scheduler_policies.get_ibm_machine()
+        self.service = load_account_ibm()
+
+        if self.transpilation_machine != 'local': self.transpilation_backend = obtain_machine(self.service, self.transpilation_machine)
+
         self.app.route('/url', methods=['POST'])(self.store_url)
         self.app.route('/circuit', methods=['POST'])(self.store_url_circuit)
         self.app.route('/unscheduler', methods=['POST'])(self.unschedule_route)
         self.app.route('/result', methods=['GET'])(self.sendResults)
 
-        self.result_lock = Lock()
+        self.result_lock = Lock()   
 
         # Check if the file with the jobs is not empty, go to each job id and search the data (execute the unscheduler to each one to retrieve the divided results), then delete the job id from the file (do this on a different thread to do job.result() in the case the job has not finished yet)
         Thread(target=self.check_ids).start()
@@ -59,12 +117,23 @@ class Scheduler:
         def internal_error(error):
             return 'Internal server error', 500
 
-    def run(self):
+    def run(self) -> None:
+        """
+        Run the scheduler
+        """
         self.updatePorts()
         print('hecho')
         self.app.run(host='0.0.0.0', port=self.app.config['PORT'], debug=False)
 
-    def handle_line(self, line,ids_file,lock):
+    def handle_line(self, line:str,ids_file:str,lock:Lock) -> None:
+        """
+        Handle the line of the file with the ids to retrieve the result of pending tasks
+
+        Args:
+            line (str): The line of the file
+            ids_file (str): The file with the ids
+            lock (Lock): The lock for the file
+        """
         fdata = json.loads(line)
         id = list(fdata.keys())[0]
         users = fdata[id][0]
@@ -88,7 +157,10 @@ class Scheduler:
                     if list(line_dict.keys())[0] != id:
                         file.write(line)
 
-    def check_ids(self):
+    def check_ids(self) -> None:
+        """
+        Check the ids in the file
+        """
         script_dir = os.path.dirname(os.path.realpath(__file__))
         ids_file = os.path.join(script_dir, 'ids.txt')# Probar con {"crwxm1gy7jt00080brsg": [[138858145774110440281622187370607091923, 29911186310521936172191454839193631165], [2, 2], [10000, 10000], "ibm", ["qaoa.py", "qaoa.py"]]}
         with open(ids_file, 'r') as file:
@@ -113,17 +185,50 @@ class Scheduler:
         #        if list(line_dict.keys())[0] not in ids:
         #            file.write(line)        
 
-    def select_policy(self, url, num_qubits, shots, user, circuit_name, maxDepth, provider, policy):
+    def select_policy(self, url:str, num_qubits:int, shots:int, user:int, circuit_name:str, maxDepth:int, provider:str, policy:str) -> None:
+        """
+        Select the policy to execute the circuit and send a post request to the policy service
+
+        Args:
+            url (str): The URL of the circuit
+            num_qubits (int): The number of qubits of the circuit
+            shots (int): The number of shots to execute the circuit
+            user (int): The user that executed the circuit
+            circuit_name (str): The name of the circuit
+            maxDepth (int): The maximum depth of the circuit
+            provider (str): The provider to execute the circuit
+            policy (str): The policy to execute the circuit
+        """
         data = {"circuit": url, "num_qubits": num_qubits, "shots": shots, "user": user, "circuit_name": circuit_name, "maxDepth": maxDepth, "provider": provider}
         requests.post(self.policy_service+policy, json=data)
         
 
-    def unschedule_route(self):
+    def unschedule_route(self) -> tuple:
+        """
+        Route to unschedule a circuit
+
+        Returns:
+            tuple: The response of the unscheduler
+        """
         data = request.get_json()
         self.unscheduler(data['counts'], data['shots'], data['provider'], data['qb'], data['users'], data['circuit_names'])
         return jsonify({'status': 'success'}), 200
 
-    def unscheduler(self, counts, shots, provider, qb, users, circuit_names):
+    def unscheduler(self, counts:dict, shots:int, provider:str, qb:list, users:list, circuit_names:list) -> tuple:
+        """
+        Unschedule a circuit
+
+        Args:
+            counts (dict): The results of the circuit execution
+            shots (int): The number of shots that the circuit was executed
+            provider (str): The provider of the circuit execution
+            qb (list): The number of qubits of the circuit
+            users (list): The users that executed the circuit
+            circuit_names (list): The name of the circuit that was executed
+
+        Returns:
+            tuple: The response of the unscheduler
+        """
 
         results = divideResults(counts,shots,provider,qb,users,circuit_names)
 
@@ -139,7 +244,23 @@ class Scheduler:
 
         return "Results stored successfully", 200  # Return a response
 
-    def store_url(self): # TODO instead of "both", use a list of providers as an input
+    def store_url(self) -> tuple: # TODO instead of "both", use a list of providers as an input
+        """
+        Sends the Quirk URL of the circuit to the policy service.
+        It checks if its a correct URL and gets information about the qubits and depth of it.
+
+        Request Parameters:
+            url (str): The Quirk URL of the circuit
+            provider (str): The provider to execute the circuit. The available values are 'ibm', 'aws', and 'both'
+            policy (str): The policy to execute the circuit
+            shots (int, optional): The number of shots to execute the circuit. Not needed if ibm_shots and aws_shots are specified and provider is 'both'
+            ibm_shots (int, optional): The number of shots to execute the circuit in IBM. Not needed if shots is specified
+            aws_shots (int, optional): The number of shots to execute the circuit in AWS. Not needed if shots is specified
+
+        Returns:
+            tuple: The response of the policy service with the scheduler task identification
+        """
+
         if request.json.get('url') is None:
             return "URL must be specified", 400
         if request.json.get('provider') is None:
@@ -208,20 +329,50 @@ class Scheduler:
                     if shots is None:
                         shots = awsShots
                     providers['aws'] = shots
-
-            maxDepth = max(sum(1 for j in circuit['cols'] if i < len(j) and j[i] not in {1, 'Measure'}) for i in range(num_qubits))
-
+            
             if num_qubits > self.max_qubits:
                 return "Circuit too large", 400  # Return a response
 
             for provider in providers: #Iterate through the providers to add the elements to the specific provider queue in case the circuit needs to be executed on multiple providers
                 shots = providers[provider]
+
+                if self.transpilation_machine == 'local':
+                    maxDepth = max(sum(1 for j in circuit['cols'] if i < len(j) and j[i] not in {1, 'Measure'}) for i in range(num_qubits))
+                else:
+                    try:
+                        x = requests.post(self.translator+provider, json = {'url':url})
+                        data = json.loads(x.text)
+                        code = ""
+                        for elem in data['code']:
+                            code += elem + '\n'
+                        if provider == 'ibm':
+                            circ = code_to_circuit_ibm(code)
+                            maxDepth = get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
+                        elif provider == 'aws':
+                            #TODO
+                            maxDepth = max(sum(1 for j in circuit['cols'] if i < len(j) and j[i] not in {1, 'Measure'}) for i in range(num_qubits))
+                    except:
+                        print("Error in the request to the translator")
+                    maxDepth = 0
+                    # TODO instead, parse it into a circuit and transpile it to get the depth (circuit.depth)
                 
                 self.select_policy(url, num_qubits, shots, user, url, maxDepth, provider, policy)
     
         return "Your id is "+str(user), 200  # Return a response
     
-    def store_url_circuit(self):
+    def store_url_circuit(self) -> tuple:
+        """
+        Sends the GitHub URL of the circuit to the policy service.
+        It first needs to get the content of the file, check if its a quantum circuit and parse it to a standard way.
+
+        Request Parameters:
+            url (str): The GitHub URL of the circuit
+            shots (int): The number of shots to execute the circuit
+            policy (str): The policy to execute the circuit
+
+        Returns:
+            tuple: The response of the policy service with the scheduler task identification
+        """
         if request.json.get('url') is None:
             return "URL must be specified", 400
         if request.json.get('shots') is None: # TODO if the policy is time, the user "should" not specify shots
@@ -252,13 +403,13 @@ class Scheduler:
             return "Invalid URL", 400
         
         circuit = response.text
-
         # Split the circuit string into lines once
         lines = circuit.split('\n')
         importAWS = next((line for line in lines if 'braket.circuits' in line), None)
         importIBM = next((line for line in lines if 'qiskit' in line), None)
 
         if importIBM:
+            circ = code_to_circuit_ibm(circuit)
             # Parse the circuit and extract the number of qubits
             num_qubits_line = next((line for line in lines if '= QuantumRegister(' in line), None)
             num_qubits = int(num_qubits_line.split('QuantumRegister(')[1].split(',')[0].strip(')')) if num_qubits_line else None
@@ -296,11 +447,14 @@ class Scheduler:
                     # This adds 1 to the number of gates used on that qubit
                     for match in re.finditer(r'qreg_q\[(\d+)\]', line):
                         qubits[int(match.group(1))] += 1
-            maxDepth = max(qubits) #Get the max number of gates on a qubit
+            if self.transpilation_machine == 'local':   
+                maxDepth = max(qubits) #Get the max number of gates on a qubit
+            else:
+                maxDepth = get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
             provider = 'ibm'
         
         elif importAWS:
-
+            circ = code_to_circuit_aws(circuit)
             # Get the data before the = in the line that appears QuantumCircuit(...)
             file_circuit_name_line = next((line for line in lines if '= Circuit(' in line), None)
             file_circuit_name = file_circuit_name_line.split('=')[0].strip() if file_circuit_name_line else None
@@ -322,7 +476,12 @@ class Scheduler:
                             qubits[elem] = 0
                         else:
                             qubits[elem] += 1
-            maxDepth = max(qubits.values()) #Get the max number of gates on a qubit
+            if self.transpilation_machine == 'local':   
+                maxDepth = max(qubits.values()) #Get the max number of gates on a qubit
+            else:
+                # TODO
+                maxDepth = max(qubits.values()) #Get the max number of gates on a qubit
+            # TODO instead, parse it into a circuit and transpile it to get the depth (circuit.depth)
             num_qubits = len(qubits.values())
             provider = 'aws'
 
@@ -331,7 +490,18 @@ class Scheduler:
         return "Your id is "+str(user), 200
 
     
-    def sendResults(self):
+    def sendResults(self) -> tuple:
+        """
+        Send the results of the circuit execution
+        This method extracts the 'id' parameter from the request's query string. The 'id' is expected to be an integer representing the user ID. It then queries the database for documents matching this ID and returns the results in JSON format.
+
+        Request Parameters:
+            id (int): The user ID from the request's query string. It must be a positive integer.
+
+        Returns:
+            tuple: The results of the circuit execution
+
+        """
         id = request.args.get('id')
         if id is None or id == '':
             return "No id provided", 400
@@ -350,7 +520,10 @@ class Scheduler:
 
         return json.dumps(json_documents), 200
 
-    def updatePorts(self):
+    def updatePorts(self) -> None:
+        """
+        Update the ports used by the scheduler
+        """
         for i in range(8083, 8182):
             a_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             location = ("0.0.0.0", i)
@@ -364,7 +537,13 @@ class Scheduler:
             a_socket.close()
 
     
-    def getFreePort(self):
+    def getFreePort(self) -> int:
+        """
+        Return a free port
+
+        Returns:
+            int: The free port
+        """
         puertos=[k for k, v in self.ports.items() if v == 0]
         self.ports[puertos[0]]=1
         return puertos[0]

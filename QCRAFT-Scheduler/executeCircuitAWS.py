@@ -1,45 +1,99 @@
-from braket.circuits import Circuit, Gate, Observable
-from braket.circuits import circuit
+from braket.circuits import Circuit
+import braket.circuits
 from braket.devices import LocalSimulator
 from braket.aws import AwsDevice
-import numpy as np
-import math
-import matplotlib.pyplot as plt
-from math import pi
-from fractions import Fraction
-from math import gcd # greatest common divisor
-import boto3
 from braket.circuits import Circuit
 from braket.devices import LocalSimulator
 from braket.aws import AwsDevice
 import time
 import os
 import json
+from braket.aws.aws_quantum_task import AwsQuantumTask
+from typing import Optional
+import braket
 
-def least_busy_backend_aws(qb):
-    qpu_machine_names = AwsDevice.get_devices(statuses=['ONLINE'])
-    print(qpu_machine_names)
-    least_busy = None
-    least_busy_tasks = 0
-    for machine in qpu_machine_names:
-        device = AwsDevice(machine.arn)
-        device_task = device.queue_depth().quantum_tasks
-        if device.properties.paradigm.qubitCount >= qb:
-            if least_busy == None:
-                least_busy = device
-                least_busy_tasks = device_task
-            elif device_task < least_busy_tasks:
-                least_busy = device
-                least_busy_tasks = device_task
+def code_to_circuit_aws(self, code_str:str) -> braket.circuits.circuit.Circuit: #Inverse parser to get the circuit object from the string
+    """
+    Transforms a string representation of a circuit into a Braket circuit.
 
-    return least_busy
+    Args:
+    code_str (str): The string representation of the Braket circuit.
         
-def retrieve_result_aws(id):
+    Returns:
+    braket.circuits.circuit.Circuit: The circuit object.
+    """
+    # Split the code into lines
+    lines = code_str.strip().split('\n')
+    # Initialize the circuit
+    circuit = braket.circuits.Circuit()
+    # Process each line
+    for line in lines:
+        if line.startswith("circuit."):
+            # Parse gate operations
+            operation = line.split('circuit.')[1]
+            gate_name = operation.split('(')[0]
+
+            if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']:
+                # These gates have a parameter
+                args = operation.split('(')[1].strip(')').split(',')
+                target_qubit = int(args[0].split('+')[0]) + int(args[0].split('+')[1].strip(') ')) if '+' in args[0] else int(args[0].strip(') ').strip())
+                angle = float(args[1])
+                getattr(circuit, gate_name)(target_qubit, angle)
+            elif gate_name in ['xx', 'yy', 'zz'] or 'cphase' in gate_name:
+                # These gates have 2 parameters
+                args = operation.split('(')[1].strip(')').split(',')
+                target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-1]]
+                angle = float(args[-1])
+                getattr(circuit, gate_name)(*target_qubits, angle)
+            elif gate_name == 'ms':
+                # These gates have multiple parameters (3)
+                args = operation.split('(')[1].strip(')').split(',')
+                target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-3]]
+                angles = [float(arg) for arg in args[-3:]]
+                getattr(circuit, gate_name)(*target_qubits, *angles)
+            else:
+                args = operation.split('(')[1].strip(')').split(',')
+                target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args if not any(c.isalpha() for c in arg)]
+                params = [float(arg) for arg in args if any(c.isalpha() for c in arg)]
+                getattr(circuit, gate_name)(*target_qubits)
+                
+    return circuit
+
+def get_transpiled_circuit_depth_aws(circuit:braket.circuits.Circuit, backend) -> None:
+    """
+    Transpiles a circuit and returns its depth.
+
+    Args:
+    circuit (braket.circuits.Circuit): The circuit to transpile.
+    backend (): The machine to transpile the circuit
+    """
+    # TODO
+    return None
+
+def retrieve_result_aws(id:int) -> dict:
+    """
+    Retrieves the results of a circuit execution from the AWS cloud based on a task id.
+
+    Args:
+    id (int): The id of the task to retrieve the results from.
+    
+    Returns:
+    dict: The results of the task execution.
+    """
     # Load your AWS account
     task = AwsDevice.retrieve(id)
     return recover_task_result(task).measurement_counts
 
-def recover_task_result(task_load):
+def recover_task_result(task_load: AwsQuantumTask) -> dict:
+    """
+    Waits for the task to complete and recovers the results of the circuit execution.
+
+    Args:
+    task_load (braket.aws.aws_quantum_task.AwsQuantumTask): The task to recover the results from.
+    
+    Returns:
+    dict: The results of the circuit execution.
+    """
     # recover task
     sleep_times = 0
     while sleep_times < 100000:
@@ -57,7 +111,19 @@ def recover_task_result(task_load):
     print("Quantum execution time exceded")
     return None
 
-def runAWS(machine, circuit, shots, s3_folder):
+def runAWS(machine:str, circuit:Circuit, shots:int, s3_folder: Optional[str] = None) -> dict:
+    """
+    Executes a circuit in the AWS cloud.
+
+    Args:
+    machine (str): The machine to execute the circuit.
+    circuit (Circuit): The circuit to execute.
+    shots (int): The number of shots to execute the circuit.
+    s3_folder (str, optional): The name of the S3 bucket to store the results. Only needed when `machine` is not 'local'
+    
+    Returns:
+    dict: The results of the circuit execution.
+    """
     x = int(shots)
 
     if machine=="local":
@@ -79,7 +145,22 @@ def runAWS(machine, circuit, shots, s3_folder):
         return counts
     
 
-def runAWS_save(machine, circuit, shots, s3_folder, users, qubit_number, circuit_names):
+def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_number:list, circuit_names:list, s3_folder: Optional[str] = None) -> dict:
+    """
+    Executes a circuit in the AWS cloud and saves the task id if the machine crashes.
+
+    Args:
+    machine (str): The machine to execute the circuit.
+    circuit (Circuit): The circuit to execute.
+    shots (int): The number of shots to execute the circuit.
+    users (list): The users that executed the circuit.
+    qubit_number (list): The number of qubits of the circuit per user.
+    circuit_names (list): The name of the circuit that was executed per user.
+    s3_folder (str, optional): The name of the S3 bucket to store the results. Only needed when `machine` is not 'local'
+
+    Returns:
+    dict: The results of the circuit execution.
+    """
     x = int(shots)
 
     if machine=="local":

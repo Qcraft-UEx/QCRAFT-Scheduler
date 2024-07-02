@@ -6,15 +6,69 @@ from executeCircuitIBM import runIBM, runIBM_save
 from executeCircuitAWS import runAWS, runAWS_save
 from ResettableTimer import ResettableTimer
 from threading import Thread
+from typing import Callable
 
 class Policy:
+    """
+    Class to store the queues and timers of a policy
+    """
     def __init__(self, policy, max_qubits, time_limit_seconds, executeCircuit, aws_machine, ibm_machine):
+        """
+        Attributes:
+            queues (dict): The queues of the policy
+            timers (dict): The timers of the policy
+        """
         self.queues = {'ibm': [], 'aws': []}
         self.timers = {'ibm': ResettableTimer(time_limit_seconds, lambda: policy(self.queues['ibm'], max_qubits, 'ibm', executeCircuit, ibm_machine)),
                        'aws': ResettableTimer(time_limit_seconds, lambda: policy(self.queues['aws'], max_qubits, 'aws', executeCircuit, aws_machine))}
 
 class SchedulerPolicies:
+    """
+    Class to manage the policies of the scheduler
+
+    Methods:
+    --------
+    service(service_name) 
+        The request handler, adding the circuit to the selected queue
+    
+    executeCircuit(data,qb,shots,provider,urls)
+        Executes the circuit in the selected provider
+    
+    most_repetitive(array)
+        Returns the most repetitive element in an array
+    
+    create_circuit(urls,code,qb,provider)
+        Creates the circuit to execute based on the URLs
+    
+    send_shots_optimized(queue, max_qubits, provider, executeCircuit, machine)
+        Sends the URLs to the server with the minimum number of shots using the shots_optimized policy
+    
+    send_shots_depth(queue, max_qubits, provider, executeCircuit, machine)
+        Sends the URLs to the server with the minimum number of shots and similar depth using the shots_depth policy
+    
+    send_depth(queue, max_qubits, provider, executeCircuit, machine)
+        Sends the URLs to the server with the most similar depth using the depth policy
+    
+    send_shots(queue, max_qubits, provider, executeCircuit, machine)
+        Sends the URLs to the server with the minimum number of shots using the shots policy
+    
+    send(queue, max_qubits, provider, executeCircuit, machine)
+        Sends the URLs to the server using the time policy
+    """
     def __init__(self, app):
+        """
+        Initializes the SchedulerPolicies class
+
+        Attributes:
+            app (Flask): The Flask app
+            time_limit_seconds (int): The time limit in seconds
+            max_qubits (int): The maximum number of qubits
+            machine_ibm (str): The IBM machine
+            machine_aws (str): The AWS machine
+            services (dict): The services of the scheduler
+            translator (str): The URL of the translator
+            unscheduler (str): The URL of the unscheduler
+        """
         self.app = app
         self.time_limit_seconds = 10
         self.max_qubits = 29
@@ -32,7 +86,25 @@ class SchedulerPolicies:
         self.app.route('/service/<service_name>', methods=['POST'])(self.service)
         
 
-    def service(self, service_name):
+    def service(self, service_name:str) -> tuple:
+        """
+        The request handler, adding the circuit to the selected queue
+
+        Args:
+            service_name (str): The name of the service
+
+        Request Parameters:
+            circuit (str): The circuit to execute
+            num_qubits (int): The number of qubits of the circuit
+            shots (int): The number of shots of the circuit
+            user (str): The user that executed the circuit
+            circuit_name (str): The name of the circuit
+            maxDepth (int): The depth of the circuit
+            provider (str): The provider of the circuit
+
+        Returns:
+            tuple: The response of the request
+        """
         if service_name not in self.services:
             return 'This service does not exist', 404
         circuit = request.json['circuit']
@@ -52,7 +124,21 @@ class SchedulerPolicies:
         return 'Data received', 200
         
     
-    def executeCircuit(self,data,qb,shots,provider,urls, machine): #Data is the composed circuit to execute, qb is the number of qubits per circuit, shots is the number of shots per circut, provider is the provider of the circuit, urls is the array with data of each circuit (url, num_qubits, shots, user, circuit_name)
+    def executeCircuit(self,data:dict,qb:list,shots:list,provider:str,urls:list, machine:str) -> None: #Data is the composed circuit to execute, qb is the number of qubits per circuit, shots is the number of shots per circut, provider is the provider of the circuit, urls is the array with data of each circuit (url, num_qubits, shots, user, circuit_name)
+        """
+        Executes the circuit in the selected provider
+
+        Args:
+            data (dict): The data of the circuit to execute
+            qb (list): The number of qubits per circuit
+            shots (list): The number of shots per circuit
+            provider (str): The provider of the circuit
+            urls (list): The data of each circuit
+            machine (str): The machine to execute the circuit
+
+        Raises:
+            Exception: If an error occurs during the execution of the circuit
+        """
         circuit = 'def circ():\n'
         f = json.loads(data)
         for line in f['code']: #Construir el circuito según lo obtenido del traductor
@@ -82,7 +168,16 @@ class SchedulerPolicies:
         requests.post(self.unscheduler, json=data)
 
 
-    def most_repetitive(self, array): #Check the most repetitive element in an array and if there are more than one, return the smallest
+    def most_repetitive(self, array:list) -> int: #Check the most repetitive element in an array and if there are more than one, return the smallest
+        """
+        Returns the most repetitive element in an array
+
+        Args:
+            array (list): The array to check
+        
+        Returns:
+            int: The most repetitive element in the array
+        """
         count_dict = {}
         for element in array: #Hashing the elements and counting them
             if element in count_dict:
@@ -99,7 +194,16 @@ class SchedulerPolicies:
 
         return max_element
 
-    def create_circuit(self,urls,code,qb,provider): #TODO add there the returning queue and in the other methods, check if the queue is not empty after the execution of thid method, so it adds the circuits back
+    def create_circuit(self,urls:list,code:list,qb:list,provider:str) -> None: #TODO add there the returning queue and in the other methods, check if the queue is not empty after the execution of thid method, so it adds the circuits back
+        """
+        Creates the circuit to execute based on the URLs
+
+        Args:
+            urls (list): The data of each circuit
+            code (list): The code of the composed circuit
+            qb (list): The number of qubits of each individual circuit
+            provider (str): The provider of the circuit
+        """
         composition_qubits = 0
         for url, num_qubits, shots, user, circuit_name, depth in urls:
         #Change the q[...] and c[...] to q[composition_qubits+...] and c[composition_qubits+...]
@@ -133,7 +237,7 @@ class SchedulerPolicies:
             code.insert(0, f"qreg_q = QuantumRegister({composition_qubits}, 'q')")  # Set composition_qubits as the number of classical bits
             code.insert(0,"from numpy import pi")
             code.insert(0,"import numpy as np")
-            code.insert(0,"from qiskit import execute, QuantumRegister, ClassicalRegister, QuantumCircuit, Aer")
+            code.insert(0,"from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit")
             code.append("return circuit")
         # Para hacer urls y circuitos quizas sea posible hacer que las urls tengan en mismo formato de salida del traductor y se pueda hacer un solo metodo para ambos. Que no se sepa cuando salgan del traductor si es un circuito o una url, que se pueda hacer el mismo tratamiento a ambos
         elif provider == 'aws':
@@ -144,7 +248,17 @@ class SchedulerPolicies:
             code.insert(0,"from braket.circuits import Circuit")
             code.append("return circuit")
 
-    def send_shots_optimized(self,queue, max_qubits, provider, executeCircuit, machine):
+    def send_shots_optimized(self,queue:list, max_qubits:int, provider:str, executeCircuit:Callable, machine:str) -> None:
+        """
+        Sends the URLs to the server with the minimum number of shots using the shots_optimized policy
+
+        Args:
+            queue (list): The waiting list
+            max_qubits (int): The maximum number of qubits
+            provider (str): The provider of the circuit
+            executeCircuit (Callable): The function to execute the circuit
+            machine (str): The machine to execute the circuit
+        """
         if len(queue) != 0:
             # Send the URLs to the server
             qb = []
@@ -176,7 +290,17 @@ class SchedulerPolicies:
             #executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['shots_optimized'].timers[provider].reset()
 
-    def send_shots_depth(self,queue, max_qubits, provider, executeCircuit, machine):
+    def send_shots_depth(self,queue:list, max_qubits:int, provider:str, executeCircuit:Callable, machine:str) -> None:
+        """
+        Sends the URLs to the server with the minimum number of shots and similar depth using the shots_depth policy
+
+        Args:
+            queue (list): The waiting list
+            max_qubits (int): The maximum number of qubits
+            provider (str): The provider of the circuit
+            executeCircuit (Callable): The function to execute the circuit
+            machine (str): The machine to execute the circuit
+        """
         # Send the URLs to the server
         if len(queue) != 0:
             qb = []
@@ -208,7 +332,17 @@ class SchedulerPolicies:
             #executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['shots_depth'].timers[provider].reset()
 
-    def send_depth(self,queue, max_qubits, provider, executeCircuit, machine):
+    def send_depth(self,queue:list, max_qubits:int, provider:str, executeCircuit:Callable, machine:str) -> None:
+        """
+        Sends the URLs to the server with the most similar depth using the depth policy
+
+        Args:
+            queue (list): The waiting list
+            max_qubits (int): The maximum number of qubits
+            provider (str): The provider of the circuit
+            executeCircuit (Callable): The function to execute the circuit
+            machine (str): The machine to execute the circuit
+        """
         # Send the URLs to the server
         if len(queue) != 0:
             print('Sent')
@@ -234,8 +368,18 @@ class SchedulerPolicies:
             #executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['depth'].timers[provider].reset()
 
-    def send_shots(self,queue, max_qubits, provider, executeCircuit, machine):
-    # Send the URLs to the server
+    def send_shots(self,queue:list, max_qubits:int, provider:str, executeCircuit:Callable, machine:str) -> None:
+        """
+        Sends the URLs to the server with the minimum number of shots using the shots policy
+
+        Args:
+            queue (list): The waiting list
+            max_qubits (int): The maximum number of qubits
+            provider (str): The provider of the circuit
+            executeCircuit (Callable): The function to execute the circuit
+            machine (str): The machine to execute the circuit
+        """
+        # Send the URLs to the server
         if len(queue) != 0:
             print('Sent')
             qb = []
@@ -264,7 +408,17 @@ class SchedulerPolicies:
             #executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['shots'].timers[provider].reset()
 
-    def send(self,queue, max_qubits, provider, executeCircuit, machine):
+    def send(self,queue:list, max_qubits:int, provider:str, executeCircuit:Callable, machine:str) -> None:
+        """
+        Sends the URLs to the server using the time policy
+
+        Args:
+            queue (list): The waiting list
+            max_qubits (int): The maximum number of qubits
+            provider (str): The provider of the circuit
+            executeCircuit (Callable): The function to execute the circuit
+            machine (str): The machine to execute the circuit
+        """
         if len(queue) != 0:
             print('Sent')
             urls = []
@@ -283,3 +437,12 @@ class SchedulerPolicies:
             Thread(target=executeCircuit, args=(json.dumps(data),qb,shotsUsr,provider,urls,machine)).start()
             #executeCircuit(json.dumps(data),qb,shotsUsr,provider,urls)
             self.services['time'].timers[provider].reset()
+
+    def get_ibm_machine(self) -> str:
+        """
+        Returns the IBM machine of the scheduler
+
+        Returns:
+            str: The IBM machine of the scheduler
+        """
+        return self.machine_ibm

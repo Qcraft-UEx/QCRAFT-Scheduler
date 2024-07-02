@@ -2,98 +2,184 @@
 # coding: utf-8
 
 # import libraries
-import numpy as np
-import math
-import matplotlib.pyplot as plt
-from math import pi
-from fractions import Fraction
-from math import gcd
-import time
-import os
-import json
-
-# Importar las bibliotecas de Qiskit
-from qiskit import QuantumCircuit, Aer, execute
-from qiskit.visualization import plot_histogram
-from qiskit.circuit.library import QFT, CU1Gate
 from qiskit import transpile
-from qiskit_ibm_provider import least_busy, IBMProvider
-from time import sleep
+import qiskit.providers
+from qiskit_ibm_runtime import QiskitRuntimeService
+from qiskit import QuantumCircuit
+from qiskit_aer import AerSimulator
+import json
+import os
+import qiskit
 
-def least_busy_backend_ibm(qb):
-    provider = IBMProvider('ibm-q', 'open', 'main')
-    backend = provider.backends(filters=lambda x: x.configuration().n_qubits >= qb and
-                               not x.configuration().simulator and x.status().operational==True)
-    backend = least_busy(backend)
+def load_account_ibm() -> QiskitRuntimeService:
+    """
+    Loads the IBM Quantum account.
+
+    Returns:
+    QiskitRuntimeService: The service with the IBM Quantum account loaded.
+    """
+    # Load your IBM Quantum account
+    service = QiskitRuntimeService()
+    return service
+
+def obtain_machine(service:QiskitRuntimeService ,machine:str) -> qiskit.providers.BackendV2:
+    """
+    Obtains the information of the machine.
+
+    Args:
+    QiskitRuntimeService: The service to obtain the machine.
+    machine (str): The machine to obtain the information.
+    
+    Returns:
+    qiskit.providers.BackendV2: The IBM backend.
+    """
+    # Load your IBM Quantum account
+    backend = service.backend(machine)
     return backend
 
+def code_to_circuit_ibm(code_str:str) -> qiskit.QuantumCircuit: #Inverse parser to get the circuit object from the string
+    """
+    Transforms a string representation of a circuit into a Qiskit circuit
+
+    Args:
+    code_str (str): The string representation of the Qiskit circuit.
+        
+    Returns:
+    qiskit.QuantumCircuit: The circuit object.
+    """
+    # Split the code into lines
+    lines = code_str.strip().split('\n')
+    # Initialize empty variables for registers and circuit
+    qreg = creg = circuit = None
+
+    # Process each line
+    for line in lines:
+        if 'import' not in line:
+            if "QuantumRegister" in line:
+                qreg_name = line.split('=')[0].strip()
+                num_qubits = int(line.split('(')[1].split(',')[0])
+                qreg = qiskit.QuantumRegister(num_qubits, qreg_name)
+            elif "ClassicalRegister" in line:
+                creg_name = line.split('=')[0].strip()
+                num_clbits = int(line.split('(')[1].split(',')[0])
+                creg = qiskit.ClassicalRegister(num_clbits, creg_name)
+            elif "QuantumCircuit" in line:
+                circuit = qiskit.QuantumCircuit(qreg, creg)
+            elif "circuit." in line:
+                # Parse gate operations
+                operation = line.split('circuit.')[1]
+                gate_name = operation.split('(')[0]
+                args = operation.split('(')[1].strip(')').split(', ')
+                if gate_name == "measure":
+                    qubit = qreg[int(args[0].split('[')[1].strip(']').split('+')[0]) + int(args[0].split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in args[0] else int(args[0].split('[')[1].strip(']'))]
+                    cbit = creg[int(args[1].split('[')[1].strip(']').split('+')[0]) + int(args[1].split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in args[1] else int(args[1].split('[')[1].strip(']'))]
+                    circuit.measure(qubit, cbit)
+                else:
+                    qubits = [qreg[int(arg.split('[')[1].strip(']').split('+')[0]) + int(arg.split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in arg else int(arg.split('[')[1].strip(']'))] for arg in args if '[' in arg]
+                    params = [float(arg) for param_str in args if '[' not in param_str for arg in param_str.split(',')]
+                    if params:
+                        getattr(circuit, gate_name)(*params, *qubits)
+                    else:
+                        getattr(circuit, gate_name)(*qubits)
+
+    return circuit
+
+def get_transpiled_circuit_depth_ibm(circuit:QuantumCircuit, backend:qiskit.providers.BackendV2) -> int:
+    """
+    Transpiles a circuit and returns its depth.
+
+    Args:
+    circuit (QuantumCircuit): The circuit to transpile.
+    backend (qiskit.providers.BackendV2): The machine to transpile the circuit
+
+    Returns:
+    int: The depth of the transpiled circuit.
+    """
+    # Load your IBM Quantum account
+    qc_basis = transpile(circuit, backend)
+    return qc_basis.depth()
+
+
 # Ejecutar el circuito
-def runIBM(machine, circuit, shots):
+def runIBM(machine:str, circuit:QuantumCircuit, shots:int) -> dict:
+    """
+    Executes a circuit in the IBM cloud.
+
+    Args:
+    machine (str): The machine to execute the circuit.
+    circuit (QuantumCircuit): The circuit to execute.
+    shots (int): The number of shots to execute the circuit.
     
+    Returns:
+    dict: The results of the circuit execution.
+    """
+
     if machine == "local":
-        backend = Aer.get_backend('qasm_simulator')
+        backend = AerSimulator()
         x = int(shots)
-        job = execute(circuit, backend, shots=x)
+        job = backend.run(circuit, shots=x)
         result = job.result()
-        # After the execution, delete in the file the line with that id, its no longer needed (we just need it because there is a possibility of the machine to stop working in the middle)
         counts = result.get_counts()
-        #print(counts)
-        #x, y = factor(counts)
-        #return [x, y]
         return counts
     else:
-        # Configura tu cuenta de IBM Quantum aquí
-        # Save your IBM Quantum account if you haven't already
-        #IBMProvider.save_account('92136e4784552b051ef443326ef6161a12dee739b5cf7ccf2ae0d44f278bb4c2600a9500ad6130a015e04fad6da96a5fd5b9794dad64589b3eaf79f997615d58')
-
         # Load your IBM Quantum account
-        provider = IBMProvider()
-        backend = provider.get_backend(machine)
-
+        service = QiskitRuntimeService()
+        backend = service.backend(machine)
         qc_basis = transpile(circuit, backend)
         x = int(shots)
-        job = execute(qc_basis, backend, shots=x)
+        job = backend.run(qc_basis, shots=x) 
         result = job.result()
         counts = result.get_counts()
-
-        print(counts)
         return counts
     
-def retrieve_result_ibm(id):
+def retrieve_result_ibm(id) -> dict:
+    """
+    Retrieves the results of a circuit execution in the IBM cloud.
+
+    Args:
+    id (str): The id of the job to retrieve the results from.
+    
+    Returns:
+    dict: The results of the task execution.
+    """
     # Load your IBM Quantum account
-    from qiskit_ibm_runtime import QiskitRuntimeService
     service = QiskitRuntimeService()
     job = service.job(id)
     result = job.result()
     counts = result.get_counts()
     return counts
 
-def runIBM_save(machine,circuit,shots,users,qubit_number, circuit_names):
-        
+def runIBM_save(machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list,) -> dict:
+    """
+    Executes a circuit in the IBM cloud and saves the task id if the machine crashes.
+
+    Args:
+    machine (str): The machine to execute the circuit.
+    circuit (QuantumCircuit): The circuit to execute.
+    shots (int): The number of shots to execute the circuit.
+    users (list): The users that executed the circuit.
+    qubit_number (list): The number of qubits of the circuit per user.
+    circuit_names (list): The name of the circuit that was executed per user.
+
+    Returns:
+    dict: The results of the circuit execution.
+    """
+
     if machine == "local":
-        backend = Aer.get_backend('qasm_simulator')
+        backend = AerSimulator()
         x = int(shots)
-        job = execute(circuit, backend, shots=x)
+        job = backend.run(circuit, shots=x)
         result = job.result()
-        # After the execution, delete in the file the line with that id, its no longer needed (we just need it because there is a possibility of the machine to stop working in the middle)
         counts = result.get_counts()
-        #print(counts)
-        #x, y = factor(counts)
-        #return [x, y]
         return counts
     else:
-        # Configura tu cuenta de IBM Quantum aquí
-        #IBMQ.save_account('ead7f493bfcd4b4a5e8baeebf56e581cde9db7ba42ec79ef5c9fc086fc58d492e99fe10c8caf8a4497c6b5f4645f4cb3cad1d926b9e576f5a392a60bdb9c82d1')
-        # Save your IBM Quantum account if you haven't already
-        #IBMProvider.save_account('92136e4784552b051ef443326ef6161a12dee739b5cf7ccf2ae0d44f278bb4c2600a9500ad6130a015e04fad6da96a5fd5b9794dad64589b3eaf79f997615d58')
-
         # Load your IBM Quantum account
-        provider = IBMProvider()
-        backend = provider.get_backend(machine)
-
+        service = QiskitRuntimeService()
+        backend = service.backend(machine)
         qc_basis = transpile(circuit, backend)
         x = int(shots)
-        job = execute(qc_basis, backend, shots=x) #TODO almacenar el identificador de la ejecucion en in fichero por si la máquina se revienta. Cuando se inicie la API, comprueba ese fichero y recupera los circuitos para hacerles el unscheduler (deberia almacenar el identificador del circuito con los datos de los usuarios(id), qubits de cada usuario)
+        job = backend.run(qc_basis, shots=x) 
+
         # -----------------------------------------------------#
 
         # TODO añadir shots, provider y circuit_names a ids.txt
@@ -108,6 +194,7 @@ def runIBM_save(machine,circuit,shots,users,qubit_number, circuit_names):
         # Write the id in a file, along with the users, and their qubit numbers
 
         # -----------------------------------------------------#
+
         result = job.result()
         counts = result.get_counts()
 
@@ -124,5 +211,4 @@ def runIBM_save(machine,circuit,shots,users,qubit_number, circuit_names):
                 
         # -----------------------------------------------------#
 
-        print(counts)
         return counts

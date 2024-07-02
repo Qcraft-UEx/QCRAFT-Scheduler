@@ -1,6 +1,17 @@
 import numpy as np
 
-def proportionalAllocation(total_shots,newCounts,usershots):
+def proportionalAllocation(total_shots:int,newCounts:dict,usershots:list) -> dict:
+    """
+    Applies proportional allocation to the results of a circuit execution.
+
+    Args:
+    total_shots (int): The total number of shots of the circuit execution.
+    newCounts (dict): The results of the circuit execution.
+    usershots (list): The number of shots to divide among the users.
+    
+    Returns:
+    dict: The results of the circuit execution divided among the users.
+    """
     proportions = {key: value / total_shots for key, value in newCounts.items()}
     # Calculate the number of shots to allocate to each key
     allocated_shots = {key: round(proportions[key] * usershots) for key in proportions.keys()} # round(...) or int(...). int is faster but round is more accurate
@@ -8,7 +19,18 @@ def proportionalAllocation(total_shots,newCounts,usershots):
     selected_counts = {key: allocated_shots[key] for key in allocated_shots.keys() if allocated_shots[key] > 0}
     return selected_counts
 
-def stratifiedSampling(total_shots,newCounts,usershots):
+def stratifiedSampling(total_shots:int,newCounts:dict,usershots:list) -> dict:
+    """
+    Applies stratified sampling to the results of a circuit execution.
+
+    Args:
+    total_shots (int): The total number of shots of the circuit execution.
+    newCounts (dict): The results of the circuit execution.
+    usershots (list): The number of shots to divide among the users.
+    
+    Returns:
+    dict: The results of the circuit execution divided among the users.
+    """
     keys = list(newCounts.keys())
     probabilities = [value / total_shots for value in newCounts.values()]
     # Sample from the keys based on their probabilities
@@ -17,7 +39,21 @@ def stratifiedSampling(total_shots,newCounts,usershots):
     selected_counts = {key: np.count_nonzero(sampled_keys == key) for key in keys}
     return selected_counts
 
-def divideResults(counts, shots, provider, qb, users, circuit_name):
+def divideResults(counts:dict, shots:int, provider:str, qb:list, users:list, circuit_name:list) -> list:
+    """
+    Divides the results of a circuit execution among the users that executed it.
+
+    Args:
+    counts (dict): The results of the circuit execution.
+    shots (int): The number of shots that the circuit was executed.
+    provider (str): The provider of the circuit execution.
+    qb (list): The number of qubits of the circuit.
+    users (list): The users that executed the circuit.
+    circuit_name (list): The name of the circuit that was executed.
+    
+    Returns:
+    list: The results of the circuit execution divided among the users.
+    """
     result = []
     for i in range(len(shots)):
         

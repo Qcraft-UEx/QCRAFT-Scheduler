@@ -1,10 +1,10 @@
-from flask import Flask, redirect, url_for, request
-from flask_cors import CORS
+from flask import Flask, request
 import ast
 import json
 from urllib.parse import unquote
 import socket
-
+from dotenv import load_dotenv
+import os
 
 global ports
 
@@ -12,7 +12,17 @@ global ports
 app = Flask(__name__)
 
 @app.route('/code/ibm', methods=['POST'])
-def get_ibm():
+def get_ibm() -> tuple:
+    """
+    Translates a list of Quirk URLs into a Qiskit circuit.
+
+    Request Parameters:
+        url (str): The Quirk URL.
+
+    Returns:
+        tuple: The Qiskit circuit in str format.
+    
+    """
 
     circuitos = []
     for i in request.json.keys():
@@ -26,7 +36,7 @@ def get_ibm():
 
     code_array = []
 
-    code_array.append('from qiskit import execute, QuantumRegister, ClassicalRegister, QuantumCircuit, Aer') #TODO comprobar si quitando Aer y execute funciona igual
+    code_array.append('from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit') #TODO comprobar si quitando Aer y execute funciona igual
     code_array.append('from numpy import pi')
 
     code_array.append('qreg_q = QuantumRegister('+str(sum(desplazamiento))+', \'q\')')
@@ -80,7 +90,18 @@ def get_ibm():
     return json.dumps(dict_response, indent = 4)
 
 @app.route('/code/ibm/individual', methods=['POST'])
-def get_ibm_individual():
+def get_ibm_individual() -> tuple:
+    """
+    Translates a single Quirk URL into a Qiskit circuit.
+
+    Request Parameters:
+        url (str): The Quirk URL.
+        d (int): The offset to add to the qubits.
+
+    Returns:
+        tuple: The Qiskit circuit in str format.
+    
+    """
     data = request.get_json()  # Get the JSON data sent with the POST request
     url = data.get('url')  # Get the 'url' parameter
     d = data.get('d') 
@@ -133,7 +154,17 @@ def get_ibm_individual():
     return json.dumps(dict_response, indent = 4)
 
 @app.route('/code/aws', methods=['POST'])
-def get_aws():
+def get_aws() -> tuple:
+    """
+    Translates a list of Quirk URLs into a Braket circuit.
+
+    Request Parameters:
+        url (str): The Quirk URL.
+
+    Returns:
+        tuple: The Braket circuit in str format.
+    
+    """
     circuitos = []
     for i in request.json.keys():
         circuitos.append(ast.literal_eval(unquote(request.json[i]).split('circuit=')[1]))
@@ -195,7 +226,18 @@ def get_aws():
     return json.dumps(dict_response, indent = 4)
 
 @app.route('/code/aws/individual', methods=['POST'])
-def get_aws_individual():
+def get_aws_individual() -> tuple:
+    """
+    Translates a single Quirk URL into a Braket circuit.
+
+    Request Parameters:
+        url (str): The Quirk URL.
+        d (int): The offset to add to the qubits.
+
+    Returns:
+        tuple: The Braket circuit in str format.
+    
+    """
     data = request.get_json()  # Get the JSON data sent with the POST request
     url = data.get('url')  # Get the 'url' parameter
     d = data.get('d') 
@@ -242,7 +284,10 @@ def get_aws_individual():
     dict_response['code'] = code_array
     return json.dumps(dict_response, indent = 4)
 
-def updatePorts():
+def updatePorts() -> None:
+    """
+    Updates the dictionary of ports that are being used
+    """
     for i in range(8082, 8182):
         a_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         location = ("0.0.0.0", i)
@@ -255,15 +300,25 @@ def updatePorts():
 
         a_socket.close()
 
-def getFreePort():
+def getFreePort() -> int:
+    """
+    Returns a free port to use
+
+    Returns:
+        int: The free port
+
+    """
     puertos=[k for k, v in ports.items() if v == 0]
     ports[puertos[0]]=1
     return puertos[0]
 
 
 if __name__ == '__main__':
-   ports={}
-   updatePorts()
-   print('hecho')
-   app.run(host='0.0.0.0', port=8081, debug=False)
+    ports={}
+    dotenv_path = os.path.join(os.path.dirname(__file__), 'db', '.env')
+    load_dotenv(dotenv_path)
+    
+    updatePorts()
+    print('hecho')
+    app.run(host='0.0.0.0', port=os.getenv('TRANSLATOR_PORT'), debug=False)
 
