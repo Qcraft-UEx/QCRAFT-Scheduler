@@ -18,18 +18,10 @@ To initialize the Scheduler you need ports 8081 and 8082 free. The translator us
 Also, it is mandatory to have both AWS and IBM Quantum accounts saved to run the circuits on the cloud.
 
 At first, you need to initialize the mongoDB database.
-
-Make sure to make custom-entrypoint.sh executable to get the database name and collection name on the mongodb database
-```bash
-chmod +x custom-entrypoint.sh
-```
-
-After that, launch the database
 ```bash
 cd db
 sudo docker compose up --build
 ```
-
 
 After initializing the database, you need to start both the translator and the Scheduler on two different terminals because they are both Flask APIs.
 
