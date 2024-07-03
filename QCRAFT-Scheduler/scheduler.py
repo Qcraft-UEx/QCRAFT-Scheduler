@@ -353,7 +353,6 @@ class Scheduler:
                             maxDepth = max(sum(1 for j in circuit['cols'] if i < len(j) and j[i] not in {1, 'Measure'}) for i in range(num_qubits))
                     except:
                         print("Error in the request to the translator")
-                    maxDepth = 0
                     # TODO instead, parse it into a circuit and transpile it to get the depth (circuit.depth)
                 
                 self.select_policy(url, num_qubits, shots, user, url, maxDepth, provider, policy)
