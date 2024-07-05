@@ -157,7 +157,7 @@ class SchedulerPolicies:
                 #counts = runIBM(self.machine_ibm,loc['circuit'],max(shots)) #Ejecutar el circuito y obtener el resultado
                 counts = runIBM_save(machine,loc['circuit'],max(shots),[url[3] for url in urls],qb,[url[4] for url in urls]) #Ejecutar el circuito y obtener el resultado
             else:
-                counts = runAWS_save(machine,loc['circuit'],max(shots),'') #Ejecutar el circuito y obtener el resultado
+                counts = runAWS_save(machine,loc['circuit'],max(shots),[url[3] for url in urls],qb,[url[4] for url in urls],'') #Ejecutar el circuito y obtener el resultado
         except Exception as e:
             print(f"Error executing circuit: {e}")
 

@@ -11,6 +11,7 @@ import json
 from braket.aws.aws_quantum_task import AwsQuantumTask
 from typing import Optional
 import braket
+import numpy as np
 
 def code_to_circuit_aws(self, code_str:str) -> braket.circuits.circuit.Circuit: #Inverse parser to get the circuit object from the string
     """
@@ -26,37 +27,37 @@ def code_to_circuit_aws(self, code_str:str) -> braket.circuits.circuit.Circuit: 
     lines = code_str.strip().split('\n')
     # Initialize the circuit
     circuit = braket.circuits.Circuit()
+    safe_namespace = {'np': np, 'pi': np.pi}
     # Process each line
     for line in lines:
         if line.startswith("circuit."):
             # Parse gate operations
             operation = line.split('circuit.')[1]
             gate_name = operation.split('(')[0]
-
             if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']:
                 # These gates have a parameter
                 args = operation.split('(')[1].strip(')').split(',')
                 target_qubit = int(args[0].split('+')[0]) + int(args[0].split('+')[1].strip(') ')) if '+' in args[0] else int(args[0].strip(') ').strip())
-                angle = float(args[1])
+                angle = eval(args[1], {"__builtins__": None}, safe_namespace)
                 getattr(circuit, gate_name)(target_qubit, angle)
             elif gate_name in ['xx', 'yy', 'zz'] or 'cphase' in gate_name:
                 # These gates have 2 parameters
                 args = operation.split('(')[1].strip(')').split(',')
                 target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-1]]
-                angle = float(args[-1])
+                angle = eval(args[-1], {"__builtins__": None}, safe_namespace)
                 getattr(circuit, gate_name)(*target_qubits, angle)
             elif gate_name == 'ms':
                 # These gates have multiple parameters (3)
                 args = operation.split('(')[1].strip(')').split(',')
                 target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-3]]
-                angles = [float(arg) for arg in args[-3:]]
+                angles = [eval(arg, {"__builtins__": None}, safe_namespace) for arg in args[-3:]]
                 getattr(circuit, gate_name)(*target_qubits, *angles)
             else:
                 args = operation.split('(')[1].strip(')').split(',')
                 target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args if not any(c.isalpha() for c in arg)]
-                params = [float(arg) for arg in args if any(c.isalpha() for c in arg)]
+                params = [eval(arg, {"__builtins__": None}, safe_namespace) for arg in args if any(c.isalpha() for c in arg)]
                 getattr(circuit, gate_name)(*target_qubits)
-                
+            
     return circuit
 
 def get_transpiled_circuit_depth_aws(circuit:braket.circuits.Circuit, backend) -> None:
@@ -136,6 +137,9 @@ def runAWS(machine:str, circuit:Circuit, shots:int, s3_folder: Optional[str] = N
     device = AwsDevice(machine)
 
     if "sv1" not in machine and "tn1" not in machine:
+
+        s3_folder = ('amazon-braket-jorgecs', 'test/') #TODO change this
+
         task = device.run(circuit, s3_folder, shots=x, poll_timeout_seconds=5 * 24 * 60 * 60) # Hacer lo mismo que con ibm para recuperar los resultados, guardar el id, usuarios... y despues en el scheduler, al iniciarlo, buscar el el bucket s3 si están los resultados, si no, esperar a que lleguen
         counts = recover_task_result(task).measurement_counts
         return counts
@@ -173,6 +177,9 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
     device = AwsDevice(machine)
 
     if "sv1" not in machine and "tn1" not in machine:
+
+        s3_folder = ('amazon-braket-jorgecs', 'test/')  # Correct format #TODO change this
+
         task = device.run(circuit, s3_folder, shots=x, poll_timeout_seconds=5 * 24 * 60 * 60) # Hacer lo mismo que con ibm para recuperar los resultados, guardar el id, usuarios... y despues en el scheduler, al iniciarlo, buscar el el bucket s3 si están los resultados, si no, esperar a que lleguen
 
         #------------------------#

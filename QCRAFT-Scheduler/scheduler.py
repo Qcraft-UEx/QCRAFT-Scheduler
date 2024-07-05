@@ -410,28 +410,28 @@ class Scheduler:
         if importIBM:
             circ = code_to_circuit_ibm(circuit)
             # Parse the circuit and extract the number of qubits
-            num_qubits_line = next((line for line in lines if '= QuantumRegister(' in line), None)
+            num_qubits_line = next((line.split('#')[0].strip() for line in lines if '= QuantumRegister(' in line.split('#')[0]), None)
             num_qubits = int(num_qubits_line.split('QuantumRegister(')[1].split(',')[0].strip(')')) if num_qubits_line else None
 
             if num_qubits > self.max_qubits:
                 return "Circuit too large", 400
 
             # Get the data before the = in the line that appears QuantumCircuit(...)
-            file_circuit_name_line = next((line for line in lines if '= QuantumCircuit(' in line), None)
+            file_circuit_name_line = next((line.split('#')[0].strip() for line in lines if '= QuantumCircuit(' in line.split('#')[0]), None)
             file_circuit_name = file_circuit_name_line.split('=')[0].strip() if file_circuit_name_line else None
 
             # Get the name of the quantum register
-            qreg_line = next((line for line in lines if '= QuantumRegister(' in line), None)
+            qreg_line = next((line.split('#')[0].strip() for line in lines if '= QuantumRegister(' in line.split('#')[0]), None)
             qreg = qreg_line.split('=')[0].strip() if qreg_line else None
-
             # Get the name of the classical register
-            creg_line = next((line for line in lines if '= ClassicalRegister(' in line), None)
+            creg_line = next((line.split('#')[0].strip() for line in lines if '= ClassicalRegister(' in line.split('#')[0]), None)
             creg = creg_line.split('=')[0].strip() if creg_line else None
 
+
             # Remove all lines that don't start with file_circuit_name and don't include the line that has file_circuit_name.add_register and line not starts with // or # (comments)
-            circuit = '\n'.join([line for line in lines if line.strip().startswith(file_circuit_name+'.') and 'add_register' not in line and not line.strip().startswith('//') and not line.strip().startswith('#')])
+            circuit_lines = [line.split('#')[0].strip() for line in lines if line.split('#')[0].strip().startswith(file_circuit_name+'.') and 'add_register' not in line]
+            circuit = '\n'.join(circuit_lines)
             
-            circuit = '\n'.join([line.lstrip() for line in circuit.split('\n')])
             
             # Replace all appearances of file_circuit_name, qreg, and creg
             circuit = circuit.replace(file_circuit_name+'.', 'circuit.')
@@ -453,13 +453,13 @@ class Scheduler:
             provider = 'ibm'
         
         elif importAWS:
-            circ = code_to_circuit_aws(circuit)
-            # Get the data before the = in the line that appears QuantumCircuit(...)
-            file_circuit_name_line = next((line for line in lines if '= Circuit(' in line), None)
+            #circ = code_to_circuit_aws(circuit)
+            file_circuit_name_line = next((line.split('#')[0].strip() for line in lines if '= Circuit(' in line.split('#')[0]), None)
             file_circuit_name = file_circuit_name_line.split('=')[0].strip() if file_circuit_name_line else None
 
             # Remove all lines that don't start with file_circuit_name and don't include the line that has file_circuit_name.add_register and line not starts with // or # (comments)
-            circuit = '\n'.join([line for line in lines if line.strip().startswith(file_circuit_name+'.') and not line.strip().startswith('//') and not line.strip().startswith('#')])
+            circuit_lines = [line.split('#')[0].strip() for line in lines if line.split('#')[0].strip().startswith(file_circuit_name+'.') and 'add_register' not in line]
+            circuit = '\n'.join(circuit_lines)
 
             circuit = circuit.replace(file_circuit_name+'.', 'circuit.')
             # Remove tabs and spaces at the beginning of the lines
@@ -469,7 +469,22 @@ class Scheduler:
             qubits = {}
             for line in circuit.split('\n'): # For each line in the circuit
                 if 'barrier' not in line and 'circuit.' in line: #If the line is not a measure or a barrier
-                    numbers = re.findall(r'\d+', line)
+                    #Get the gate_name, which is the thing after circuit. and before (
+                    gate_name = re.search(r'circuit\.(.*?)\(', line).group(1)
+                    if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']: # Because different gates have different number of parameters and in braket circuits there is no visual difference between a qubit and a parameter
+                        # These gates have a parameter
+                        numbers_retrieved = re.findall(r'\d+', line)
+                        numbers = numbers_retrieved[0] if numbers_retrieved else None
+                        
+                    elif gate_name in ['xx', 'yy', 'zz', 'ms'] or 'cphase' in gate_name:
+                        # These gates have 2 or more parameters
+                        numbers_retrieved = re.findall(r'\d+', line)
+                        numbers = numbers[:2] if numbers_retrieved else None  
+                        
+                    else:
+                        # These gates have no parameters
+                        numbers = re.findall(r'\d+', line)
+                    
                     for elem in numbers:
                         if elem not in qubits:
                             qubits[elem] = 0

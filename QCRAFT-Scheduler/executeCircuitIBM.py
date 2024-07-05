@@ -10,6 +10,8 @@ from qiskit_aer import AerSimulator
 import json
 import os
 import qiskit
+import numpy as np
+import re
 
 def load_account_ibm() -> QiskitRuntimeService:
     """
@@ -51,7 +53,6 @@ def code_to_circuit_ibm(code_str:str) -> qiskit.QuantumCircuit: #Inverse parser 
     lines = code_str.strip().split('\n')
     # Initialize empty variables for registers and circuit
     qreg = creg = circuit = None
-
     # Process each line
     for line in lines:
         if 'import' not in line:
@@ -66,22 +67,34 @@ def code_to_circuit_ibm(code_str:str) -> qiskit.QuantumCircuit: #Inverse parser 
             elif "QuantumCircuit" in line:
                 circuit = qiskit.QuantumCircuit(qreg, creg)
             elif "circuit." in line:
+                if ".c_if(" in line:
+                    operation, condition = line.split('.c_if(')
+                else:
+                    operation = line
+                    condition = None
                 # Parse gate operations
-                operation = line.split('circuit.')[1]
-                gate_name = operation.split('(')[0]
-                args = operation.split('(')[1].strip(')').split(', ')
+                gate_name = operation.split('circuit.')[1].split('(')[0]
+                args = re.split(r'\s*,\s*', operation.split('(')[1].strip(')').strip())
                 if gate_name == "measure":
                     qubit = qreg[int(args[0].split('[')[1].strip(']').split('+')[0]) + int(args[0].split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in args[0] else int(args[0].split('[')[1].strip(']'))]
                     cbit = creg[int(args[1].split('[')[1].strip(']').split('+')[0]) + int(args[1].split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in args[1] else int(args[1].split('[')[1].strip(']'))]
                     circuit.measure(qubit, cbit)
+                elif gate_name == "barrier":
+                    if args[0] == '':  # For barrier()
+                        circuit.barrier()
+                    elif args[0] == qreg.name: # For barrier(qreg)
+                        circuit.barrier(*qreg)
+                    else: # For barrier(qreg[i], qreg[j], ...)
+                        qubits = [qreg[int(arg.split('[')[1].strip(']').split('+')[0]) + int(arg.split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in arg else int(arg.split('[')[1].strip(']'))] for arg in args if '[' in arg]
+                        circuit.barrier(qubits)
                 else:
                     qubits = [qreg[int(arg.split('[')[1].strip(']').split('+')[0]) + int(arg.split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in arg else int(arg.split('[')[1].strip(']'))] for arg in args if '[' in arg]
-                    params = [float(arg) for param_str in args if '[' not in param_str for arg in param_str.split(',')]
-                    if params:
-                        getattr(circuit, gate_name)(*params, *qubits)
-                    else:
-                        getattr(circuit, gate_name)(*qubits)
-
+                    params = [eval(arg, {"__builtins__": None, "np": np}, {}) for param_str in args if '[' not in param_str for arg in param_str.split(',')]
+                    gate_operation = getattr(circuit, gate_name)(*params, *qubits) if params else getattr(circuit, gate_name)(*qubits)
+                    if condition:
+                        creg_name, val = condition.split(')')[0].split(',')
+                        val = int(val.strip())
+                        gate_operation.c_if(creg, val)
     return circuit
 
 def get_transpiled_circuit_depth_ibm(circuit:QuantumCircuit, backend:qiskit.providers.BackendV2) -> int:
