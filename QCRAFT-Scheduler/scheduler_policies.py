@@ -70,8 +70,8 @@ class SchedulerPolicies:
             unscheduler (str): The URL of the unscheduler
         """
         self.app = app
-        self.time_limit_seconds = 10
-        self.max_qubits = 29
+        self.time_limit_seconds = 30
+        self.max_qubits = 20
         self.machine_ibm = 'local' # TODO maybe add machine as a parameter to the policy instead so it can be changed on each execution or just get the best machine just before the execution
         self.machine_aws = 'local'
 
@@ -147,6 +147,8 @@ class SchedulerPolicies:
         circuit = circuit + 'circuit = circ()'
 
         loc = {}
+
+        print(circuit)
 
         exec(circuit,globals(),loc) #Recuperar el objeto circuito que se obtiene, cuidado porque si el código del circuito no está controlado, esto es muy peligroso
         # Aquí se podría comprobar la mejor máquina para ejecutar el circuito
@@ -225,7 +227,20 @@ class SchedulerPolicies:
                         line = line.replace('creg_c[', f'creg_c[{composition_qubits}+')
                     elif provider == 'aws':
                         # In the AWS case, all elements have circuit. the integer elements in this line will be replaced by the element+composition_qubits
-                        line = re.sub(r'circuit\.(\w+)\(([\d, ]+)\)', lambda x: f'circuit.{x.group(1)}({", ".join(str(int(num)+composition_qubits) for num in x.group(2).split(","))})', line)
+                        #line = re.sub(r'circuit\.(\w+)\(([\d, ]+)\)', lambda x: f'circuit.{x.group(1)}({", ".join(str(int(num)+composition_qubits) for num in x.group(2).split(","))})', line)
+                        gate_name = re.search(r'circuit\.(.*?)\(', line).group(1)
+                        if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']:
+                            # These gates have a parameter
+                            # Edit the first parameter
+                            line = re.sub(rf'{gate_name}\(\s*(\d+)', lambda m: f"{gate_name}({int(m.group(1)) + composition_qubits}", line, count=1)
+                        elif gate_name in ['xx', 'yy', 'zz','ms'] or 'cphase' in gate_name:
+                            # These gates have 2 parameters
+                            # Edit the first and second parameters
+                            line= re.sub(rf'{gate_name}\((\d+),\s*(\d+)', lambda m: f"{gate_name}({int(m.group(1)) + composition_qubits},{int(m.group(2)) + composition_qubits}", line, count=1)
+
+                        else:
+                            # These gates have no parameters, so change the number of qubits on all
+                            line = re.sub(r'(\d+)', lambda m: str(int(m.group(1)) + composition_qubits), line)
                     code.append(line)
             composition_qubits += num_qubits
             qb.append(num_qubits)

@@ -58,11 +58,11 @@ def code_to_circuit_ibm(code_str:str) -> qiskit.QuantumCircuit: #Inverse parser 
         if 'import' not in line:
             if "QuantumRegister" in line:
                 qreg_name = line.split('=')[0].strip()
-                num_qubits = int(line.split('(')[1].split(',')[0])
+                num_qubits = int(line.split('(')[1].split(')')[0].split(',')[0].strip())
                 qreg = qiskit.QuantumRegister(num_qubits, qreg_name)
             elif "ClassicalRegister" in line:
                 creg_name = line.split('=')[0].strip()
-                num_clbits = int(line.split('(')[1].split(',')[0])
+                num_clbits = int(line.split('(')[1].split(')')[0].split(',')[0].strip())
                 creg = qiskit.ClassicalRegister(num_clbits, creg_name)
             elif "QuantumCircuit" in line:
                 circuit = qiskit.QuantumCircuit(qreg, creg)
