@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/Qcraft-UEx/QCRAFT/blob/main/LICENSE)
 ## Description
 
-QCRAFT-Scheduler is a API for quantum circuit composing. The principal benefit is the lower cost and queue times by adding circuits of different developers together into a bigger one.
+QCRAFT Scheduler: A tool to optimize the scheduling of quantum tasks in quantum computing environments by combining quantum circuits.
 
 ## Installation
 
