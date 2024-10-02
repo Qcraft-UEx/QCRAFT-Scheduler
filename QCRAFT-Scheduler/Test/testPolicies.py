@@ -18,7 +18,7 @@ urls = {
 
 # 4 for time
 
-data = {"url":urls["qaoa"] ,"shots" : 10000, "provider":"ibm", "policy":"time"}
+data = {"url":urls["qaoa"] ,"shots" : 10000, "policy":"time"}
 ids.append((int(requests.post(url+pathCircuit, json = data).text.split("Your id is ")[1]), 10000))
 print(str(i)+" sent")
 i+=1

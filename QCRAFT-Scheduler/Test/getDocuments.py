@@ -2,8 +2,8 @@
 from pymongo import MongoClient
 
 client = MongoClient('mongodb://root:example@localhost:27017/')
-db = client['Scheduler']
-collection = db['Scheduler']
+db = client['scheduler']
+collection = db['scheduler']
 
 # Get all documents in the collection
 documents = collection.find()

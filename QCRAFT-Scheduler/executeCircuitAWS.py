@@ -18,46 +18,49 @@ def code_to_circuit_aws(self, code_str:str) -> braket.circuits.circuit.Circuit: 
     Transforms a string representation of a circuit into a Braket circuit.
 
     Args:
-    code_str (str): The string representation of the Braket circuit.
+        code_str (str): The string representation of the Braket circuit.
         
     Returns:
-    braket.circuits.circuit.Circuit: The circuit object.
+        braket.circuits.circuit.Circuit: The circuit object.
     """
     # Split the code into lines
-    lines = code_str.strip().split('\n')
-    # Initialize the circuit
-    circuit = braket.circuits.Circuit()
-    safe_namespace = {'np': np, 'pi': np.pi}
-    # Process each line
-    for line in lines:
-        if line.startswith("circuit."):
-            # Parse gate operations
-            operation = line.split('circuit.')[1]
-            gate_name = operation.split('(')[0]
-            if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']:
-                # These gates have a parameter
-                args = operation.split('(')[1].strip(')').split(',')
-                target_qubit = int(args[0].split('+')[0]) + int(args[0].split('+')[1].strip(') ')) if '+' in args[0] else int(args[0].strip(') ').strip())
-                angle = eval(args[1], {"__builtins__": None}, safe_namespace)
-                getattr(circuit, gate_name)(target_qubit, angle)
-            elif gate_name in ['xx', 'yy', 'zz'] or 'cphase' in gate_name:
-                # These gates have 2 parameters
-                args = operation.split('(')[1].strip(')').split(',')
-                target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-1]]
-                angle = eval(args[-1], {"__builtins__": None}, safe_namespace)
-                getattr(circuit, gate_name)(*target_qubits, angle)
-            elif gate_name == 'ms':
-                # These gates have multiple parameters (3)
-                args = operation.split('(')[1].strip(')').split(',')
-                target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-3]]
-                angles = [eval(arg, {"__builtins__": None}, safe_namespace) for arg in args[-3:]]
-                getattr(circuit, gate_name)(*target_qubits, *angles)
-            else:
-                args = operation.split('(')[1].strip(')').split(',')
-                target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args if not any(c.isalpha() for c in arg)]
-                params = [eval(arg, {"__builtins__": None}, safe_namespace) for arg in args if any(c.isalpha() for c in arg)]
-                getattr(circuit, gate_name)(*target_qubits)
-            
+    try:
+        lines = code_str.strip().split('\n')
+        # Initialize the circuit
+        circuit = braket.circuits.Circuit()
+        safe_namespace = {'np': np, 'pi': np.pi}
+        # Process each line
+        for line in lines:
+            if line.startswith("circuit."):
+                # Parse gate operations
+                operation = line.split('circuit.')[1]
+                gate_name = operation.split('(')[0]
+                if gate_name in ['rx', 'ry', 'rz', 'gpi', 'gpi2', 'phaseshift']:
+                    # These gates have a parameter
+                    args = operation.split('(')[1].strip(')').split(',')
+                    target_qubit = int(args[0].split('+')[0]) + int(args[0].split('+')[1].strip(') ')) if '+' in args[0] else int(args[0].strip(') ').strip())
+                    angle = eval(args[1], {"__builtins__": None}, safe_namespace)
+                    getattr(circuit, gate_name)(target_qubit, angle)
+                elif gate_name in ['xx', 'yy', 'zz'] or 'cphase' in gate_name:
+                    # These gates have 2 parameters
+                    args = operation.split('(')[1].strip(')').split(',')
+                    target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-1]]
+                    angle = eval(args[-1], {"__builtins__": None}, safe_namespace)
+                    getattr(circuit, gate_name)(*target_qubits, angle)
+                elif gate_name == 'ms':
+                    # These gates have multiple parameters (3)
+                    args = operation.split('(')[1].strip(')').split(',')
+                    target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args[:-3]]
+                    angles = [eval(arg, {"__builtins__": None}, safe_namespace) for arg in args[-3:]]
+                    getattr(circuit, gate_name)(*target_qubits, *angles)
+                else:
+                    args = operation.split('(')[1].strip(')').split(',')
+                    target_qubits = [int(arg.split('+')[0]) + int(arg.split('+')[1].strip(') ')) if '+' in arg else int(arg.strip(') ').strip()) for arg in args if not any(c.isalpha() for c in arg)]
+                    params = [eval(arg, {"__builtins__": None}, safe_namespace) for arg in args if any(c.isalpha() for c in arg)]
+                    getattr(circuit, gate_name)(*target_qubits)
+    except Exception as e:
+        raise ValueError("Invalid circuit code")
+                
     return circuit
 
 def get_transpiled_circuit_depth_aws(circuit:braket.circuits.Circuit, backend) -> None:
@@ -65,8 +68,8 @@ def get_transpiled_circuit_depth_aws(circuit:braket.circuits.Circuit, backend) -
     Transpiles a circuit and returns its depth.
 
     Args:
-    circuit (braket.circuits.Circuit): The circuit to transpile.
-    backend (): The machine to transpile the circuit
+        circuit (braket.circuits.Circuit): The circuit to transpile.        
+        backend (): The machine to transpile the circuit
     """
     # TODO
     return None
@@ -76,10 +79,10 @@ def retrieve_result_aws(id:int) -> dict:
     Retrieves the results of a circuit execution from the AWS cloud based on a task id.
 
     Args:
-    id (int): The id of the task to retrieve the results from.
+        id (int): The id of the task to retrieve the results from.
     
     Returns:
-    dict: The results of the task execution.
+        dict: The results of the task execution.
     """
     # Load your AWS account
     task = AwsDevice.retrieve(id)
@@ -90,10 +93,10 @@ def recover_task_result(task_load: AwsQuantumTask) -> dict:
     Waits for the task to complete and recovers the results of the circuit execution.
 
     Args:
-    task_load (braket.aws.aws_quantum_task.AwsQuantumTask): The task to recover the results from.
+        task_load (braket.aws.aws_quantum_task.AwsQuantumTask): The task to recover the results from.
     
     Returns:
-    dict: The results of the circuit execution.
+        dict: The results of the circuit execution.
     """
     # recover task
     sleep_times = 0
@@ -117,13 +120,13 @@ def runAWS(machine:str, circuit:Circuit, shots:int, s3_folder: Optional[str] = N
     Executes a circuit in the AWS cloud.
 
     Args:
-    machine (str): The machine to execute the circuit.
-    circuit (Circuit): The circuit to execute.
-    shots (int): The number of shots to execute the circuit.
-    s3_folder (str, optional): The name of the S3 bucket to store the results. Only needed when `machine` is not 'local'
+        machine (str): The machine to execute the circuit.        
+        circuit (Circuit): The circuit to execute.        
+        shots (int): The number of shots to execute the circuit.        
+        s3_folder (str, optional): The name of the S3 bucket to store the results. Only needed when `machine` is not 'local'
     
     Returns:
-    dict: The results of the circuit execution.
+        dict: The results of the circuit execution.
     """
     x = int(shots)
 
@@ -154,16 +157,16 @@ def runAWS_save(machine:str, circuit:Circuit, shots:int, users:list, qubit_numbe
     Executes a circuit in the AWS cloud and saves the task id if the machine crashes.
 
     Args:
-    machine (str): The machine to execute the circuit.
-    circuit (Circuit): The circuit to execute.
-    shots (int): The number of shots to execute the circuit.
-    users (list): The users that executed the circuit.
-    qubit_number (list): The number of qubits of the circuit per user.
-    circuit_names (list): The name of the circuit that was executed per user.
-    s3_folder (str, optional): The name of the S3 bucket to store the results. Only needed when `machine` is not 'local'
+        machine (str): The machine to execute the circuit.        
+        circuit (Circuit): The circuit to execute.
+        shots (int): The number of shots to execute the circuit.        
+        users (list): The users that executed the circuit.        
+        qubit_number (list): The number of qubits of the circuit per user.
+        circuit_names (list): The name of the circuit that was executed per user.        
+        s3_folder (str, optional): The name of the S3 bucket to store the results. Only needed when `machine` is not 'local'
 
     Returns:
-    dict: The results of the circuit execution.
+        dict: The results of the circuit execution.
     """
     x = int(shots)
 

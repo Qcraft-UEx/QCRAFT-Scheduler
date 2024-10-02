@@ -35,7 +35,7 @@ for j in range(3):
     i+=1
 
 for j in range(3):
-    data = {"url":urls["qaoa"] ,"shots" : 10000, "provider":"ibm", "policy":"shots_depth"}
+    data = {"url":urls["qaoa"] ,"shots" : 10000, "provider":"ibm"}
     ids.append((int(requests.post(url+pathCircuit, json = data).text.split("Your id is ")[1]), 10000))
     print(str(i)+" sent")
     i+=1

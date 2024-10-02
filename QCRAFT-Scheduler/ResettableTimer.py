@@ -31,8 +31,8 @@ class ResettableTimer:
 
         Attributes:
             timeout (int): The time to wait before executing the callback function
-            callback (function): The function to execute when the timer expires
-            timer (Timer): The timer object
+            callback (function): The function to execute when the timer expires            
+            timer (Timer): The timer object            
             lock (Lock): The lock object
         """
         self.timeout = timeout

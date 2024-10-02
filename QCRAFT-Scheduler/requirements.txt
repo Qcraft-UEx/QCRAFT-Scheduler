@@ -7,4 +7,4 @@ flask>=3.0.3,<4.0.0
 pymongo>=4.7.3,<5.0.0
 antlr4-python3-runtime==4.9.2
 numpy>=1.22.4,<2
-python-dotenv
+python-dotenv>=1.0.1,<2.0.0

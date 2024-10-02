@@ -22,36 +22,6 @@ from dotenv import load_dotenv
 class Scheduler:
     """
     Class to manage the petitions of quantum circuit scheduling.
-
-    Methods
-    -------
-    run()
-        Run the scheduler
-
-    handle_line(line,ids_file,lock)
-        Handle the line of the file with the ids to retrieve the result of pending tasks
-
-    check_ids()
-        Check the ids in the file
-
-    select_policy(url, num_qubits, shots, user, circuit_name, maxDepth, provider, policy)
-        Select the policy to execute the circuit
-
-    unschedule_route()
-        Route to unschedule a circuit
-
-    unscheduler(counts, shots, provider, qb, users, circuit_names)
-        Unschedule a circuit
-
-    store_url()
-        Sends the Quirk URL of the circuit to the policy service
-
-    store_url_circuit()
-        Sends the GitHub URL of the circuit to the policy service
-
-    sendResults()
-        Send the results of the circuit execution
-    
     """
     def __init__(self):
         """
@@ -60,13 +30,13 @@ class Scheduler:
         Attributes:
             app (Flask): The Flask app
             ports (dict): The ports used by the scheduler
-            max_qubits (int): The maximum number of qubits
-            client (MongoClient): The MongoDB client
-            db (MongoClient): The MongoDB database
-            collection (MongoClient): The MongoDB collection
-            translator (str): The URL of the translator
-            policy_service (str): The URL of the policy service
-            scheduler_policies (SchedulerPolicies): The scheduler policies
+            max_qubits (int): The maximum number of qubits            
+            client (MongoClient): The MongoDB client            
+            db (MongoClient): The MongoDB database            
+            collection (MongoClient): The MongoDB collection            
+            translator (str): The URL of the translator            
+            policy_service (str): The URL of the policy service            
+            scheduler_policies (SchedulerPolicies): The scheduler policies            
             result_lock (Lock): The lock for the results
         """
         self.app = Flask(__name__)
@@ -130,8 +100,8 @@ class Scheduler:
         Handle the line of the file with the ids to retrieve the result of pending tasks
 
         Args:
-            line (str): The line of the file
-            ids_file (str): The file with the ids
+            line (str): The line of the file            
+            ids_file (str): The file with the ids            
             lock (Lock): The lock for the file
         """
         fdata = json.loads(line)
@@ -190,13 +160,13 @@ class Scheduler:
         Select the policy to execute the circuit and send a post request to the policy service
 
         Args:
-            url (str): The URL of the circuit
+            url (str): The URL of the circuit            
             num_qubits (int): The number of qubits of the circuit
-            shots (int): The number of shots to execute the circuit
-            user (int): The user that executed the circuit
-            circuit_name (str): The name of the circuit
-            maxDepth (int): The maximum depth of the circuit
-            provider (str): The provider to execute the circuit
+            shots (int): The number of shots to execute the circuit            
+            user (int): The user that executed the circuit    
+            circuit_name (str): The name of the circuit            
+            maxDepth (int): The maximum depth of the circuit            
+            provider (str): The provider to execute the circuit            
             policy (str): The policy to execute the circuit
         """
         data = {"circuit": url, "num_qubits": num_qubits, "shots": shots, "user": user, "circuit_name": circuit_name, "maxDepth": maxDepth, "provider": provider}
@@ -219,11 +189,11 @@ class Scheduler:
         Unschedule a circuit
 
         Args:
-            counts (dict): The results of the circuit execution
-            shots (int): The number of shots that the circuit was executed
-            provider (str): The provider of the circuit execution
-            qb (list): The number of qubits of the circuit
-            users (list): The users that executed the circuit
+            counts (dict): The results of the circuit execution            
+            shots (int): The number of shots that the circuit was executed            
+            provider (str): The provider of the circuit execution            
+            qb (list): The number of qubits of the circuit            
+            users (list): The users that executed the circuit            
             circuit_names (list): The name of the circuit that was executed
 
         Returns:
@@ -232,7 +202,7 @@ class Scheduler:
 
         results = divideResults(counts,shots,provider,qb,users,circuit_names)
 
-        #Save the content of results in a file
+        #Save the content of results in a file   
         for dividedResult in results:
             for key, value in dividedResult.items():
                 # Split the key into the id and the circuit name
@@ -240,7 +210,8 @@ class Scheduler:
                 # Create the update document
                 update = {'$inc': {'value.' + k: v for k, v in value.items()}}
                 # Upsert the document
-                self.collection.update_one({'_id': str(id), 'circuit': circuit_name}, update, upsert=True)
+                with self.result_lock: #In the case provider is both so the data retrieval is done after the first update finishes
+                    self.collection.update_one({'_id': str(id), 'circuit': circuit_name}, update, upsert=True)
 
         return "Results stored successfully", 200  # Return a response
 
@@ -251,10 +222,10 @@ class Scheduler:
 
         Request Parameters:
             url (str): The Quirk URL of the circuit
-            provider (str): The provider to execute the circuit. The available values are 'ibm', 'aws', and 'both'
-            policy (str): The policy to execute the circuit
-            shots (int, optional): The number of shots to execute the circuit. Not needed if ibm_shots and aws_shots are specified and provider is 'both'
-            ibm_shots (int, optional): The number of shots to execute the circuit in IBM. Not needed if shots is specified
+            provider (str | list): The provider to execute the circuit. The available values are 'ibm' and 'aws'. If multiple providers are specified, the format of this parameter should be a list of strings. Default is 'ibm'
+            policy (str): The policy to execute the circuit. Default is 'time'            
+            shots (int, optional): The number of shots to execute the circuit. Not needed if ibm_shots and aws_shots are specified and both providers are described in `provider`            
+            ibm_shots (int, optional): The number of shots to execute the circuit in IBM. Not needed if shots is specified            
             aws_shots (int, optional): The number of shots to execute the circuit in AWS. Not needed if shots is specified
 
         Returns:
@@ -264,15 +235,21 @@ class Scheduler:
         if request.json.get('url') is None:
             return "URL must be specified", 400
         if request.json.get('provider') is None:
-            return "Provider must be specified", 400
+            provider = 'ibm'
+            #return "Provider must be specified", 400
+        else:
+            provider = request.json['provider']
         if request.json.get('policy') is None:
-            return "Policy must be specified", 400
+            policy = 'time'
+            #return "Policy must be specified", 400
+        else:
+            policy = request.json['policy']     
+
         url =  request.json['url']
-        provider = request.json['provider']
+        
         # To handle provider if its a string
         if isinstance(provider, str):
             provider = [provider]
-        policy = request.json['policy']
         shots = None
         # TODO if the policy is time, the user "should" not specify shots
         if request.json.get('ibm_shots') is not None and request.json.get('aws_shots') is not None and ('ibm' in provider and 'aws' in provider): # If the provider is both and the shots of each provider are specified, use the ibm and aws shots
@@ -367,7 +344,7 @@ class Scheduler:
         Request Parameters:
             url (str): The GitHub URL of the circuit
             shots (int): The number of shots to execute the circuit
-            policy (str): The policy to execute the circuit
+            policy (str): The policy to execute the circuit. Default is 'time'
 
         Returns:
             tuple: The response of the policy service with the scheduler task identification
@@ -377,10 +354,12 @@ class Scheduler:
         if request.json.get('shots') is None: # TODO if the policy is time, the user "should" not specify shots
             return "Shots must be specified", 400
         if request.json.get('policy') is None:
-            return "Policy must be specified", 400
+            policy = 'time'
+            #return "Policy must be specified", 400
+        else:
+            policy = request.json['policy']
         url = request.json['url']
         shots = request.json['shots']
-        policy = request.json['policy']
 
         if not isinstance(shots, int) or shots <= 0 or shots > 20000:
             return "Invalid shots value", 400

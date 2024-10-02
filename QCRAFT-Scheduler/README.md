@@ -3,7 +3,7 @@
 [![License](https://img.shields.io/badge/license-MIT-green.svg)](https://github.com/Qcraft-UEx/QCRAFT/blob/main/LICENSE)
 ## Description
 
-QCRAFT Scheduler: A tool to optimize the scheduling of quantum tasks in quantum computing environments by combining quantum circuits.
+QCRAFT-Scheduler is a API for quantum circuit composing. The principal benefit is the lower cost and queue times by adding circuits of different developers together into a bigger one.
 
 ## Installation
 
@@ -34,7 +34,7 @@ python3 translator.py
 python3 scheduler.py
 ```
 
-Here is a basic example on how to send a Quirk URL to the Scheduler. The Quirk URL will only be accepted in the /url path. You must specify shots and the policy (time, shots, depth, shots_depth, shots_optimized).
+Here is a basic example on how to send a Quirk URL to the Scheduler. The Quirk URL will only be accepted in the /url path. You must specify shots. The policy (time, shots, depth, shots_depth, shots_optimized) is not mandatory and will take 'time' as default value if not specified. Provider ('ibm', 'aws' or ['ibm','aws']) is not mandatory and will take 'ibm' as default value if not specified.
 ```python
 import requests
 
@@ -42,7 +42,7 @@ data = {"url":"https://algassert.com/quirk#circuit={'cols':[['H'],['•','X'],['
 requests.post(localhost:8082/url, json = data)
 ```
 
-Here is a basic example on how to send a GitHub URL to the Scheduler. Using a GitHub URL eliminates the need of a provider in the request. The GitHub URL will only be accepted in the /circuit path. You must specify shots and the policy (time, shots, depth, shots_depth, shots_optimized).
+Here is a basic example on how to send a GitHub URL to the Scheduler. Using a GitHub URL eliminates the need of a provider in the request. The GitHub URL will only be accepted in the /circuit path. You must specify shots. The policy (time, shots, depth, shots_depth, shots_optimized) is not mandatory and will take 'time' as default value if not specified.
 ```python
 import requests
 
@@ -54,7 +54,7 @@ Here is a basic example on how to send a Quirk URL to the Scheduler on both prov
 ```python
 import requests
 
-data = {"url":"https://algassert.com/quirk#circuit={'cols':[['H'],['•','X'],['Measure','Measure']]}" ,"shots":10000,"provider":"both", "policy":"depth"}
+data = {"url":"https://algassert.com/quirk#circuit={'cols':[['H'],['•','X'],['Measure','Measure']]}" ,"shots":10000,"provider":['ibm','aws'], "policy":"depth"}
 requests.post(localhost:8082/url, json = data)
 ```
 
@@ -62,7 +62,7 @@ Here is a basic example on how to send a Quirk URL to the Scheduler on both prov
 ```python
 import requests
 
-data = {"url":"https://algassert.com/quirk#circuit={'cols':[['H'],['•','X'],['Measure','Measure']]}" ,"aws_shots":10000, "ibm_shots":10000, "provider":"both", "policy":"shots_depth"}
+data = {"url":"https://algassert.com/quirk#circuit={'cols':[['H'],['•','X'],['Measure','Measure']]}" ,"aws_shots":10000, "ibm_shots":10000, "provider":['ibm','aws'], "policy":"shots_depth"}
 requests.post(localhost:8082/url, json = data)
 ```
 

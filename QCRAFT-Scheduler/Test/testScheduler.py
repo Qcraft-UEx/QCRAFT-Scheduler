@@ -12,7 +12,7 @@ ids = []
 
 i=0
 
-data = {"url":"https://algassert.com/quirk#circuit={'cols':[[1,1,'H'],[1,'X','•'],['X','•','•'],[1,1,'X'],[1,'X','•'],[1,'X'],['X','•','•'],[1,'X','X'],[1,'X','•'],['X','•','•'],[1,1,'X'],[1,'X','•'],[1,'X'],['X','•','•'],[1,'X','X'],['Measure','Measure','Measure']]}" ,"shots" : 1000, "provider":"ibm", "policy":"time"}
+data = {"url":"https://algassert.com/quirk#circuit={'cols':[[1,1,'H'],[1,'X','•'],['X','•','•'],[1,1,'X'],[1,'X','•'],[1,'X'],['X','•','•'],[1,'X','X'],[1,'X','•'],['X','•','•'],[1,1,'X'],[1,'X','•'],[1,'X'],['X','•','•'],[1,'X','X'],['Measure','Measure','Measure']]}" ,"shots" : 1000, "provider":['aws','ibm'], "policy":"time"}
 ids.append((int(requests.post(url+pathURL, json = data).text.split("Your id is ")[1]), 10000))
 print(str(i)+" sent")
 i+=1
@@ -60,3 +60,8 @@ i+=1
 #x = requests.get('http://54.155.193.167:8081/code/ibm', headers=headers)
 
 #print(x.text)
+
+data = {"url":"https://algassert.com/quirk#circuit={'cols':[[1,1,'H'],[1,'X','•'],['X','•','•'],[1,1,'X'],[1,'X','•'],[1,'X'],['X','•','•'],[1,'X','X'],[1,'X','•'],['X','•','•'],[1,1,'X'],[1,'X','•'],[1,'X'],['X','•','•'],[1,'X','X'],['Measure','Measure','Measure']]}" ,"shots" : 1000}
+ids.append((int(requests.post(url+pathURL, json = data).text.split("Your id is ")[1]), 10000))
+print(str(i)+" sent")
+i+=1

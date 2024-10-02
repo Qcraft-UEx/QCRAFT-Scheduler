@@ -60,13 +60,13 @@ class SchedulerPolicies:
         Initializes the SchedulerPolicies class
 
         Attributes:
-            app (Flask): The Flask app
-            time_limit_seconds (int): The time limit in seconds
-            max_qubits (int): The maximum number of qubits
-            machine_ibm (str): The IBM machine
-            machine_aws (str): The AWS machine
-            services (dict): The services of the scheduler
-            translator (str): The URL of the translator
+            app (Flask): The Flask app            
+            time_limit_seconds (int): The time limit in seconds            
+            max_qubits (int): The maximum number of qubits            
+            machine_ibm (str): The IBM machine            
+            machine_aws (str): The AWS machine            
+            services (dict): The services of the scheduler            
+            translator (str): The URL of the translator            
             unscheduler (str): The URL of the unscheduler
         """
         self.app = app
@@ -95,11 +95,11 @@ class SchedulerPolicies:
 
         Request Parameters:
             circuit (str): The circuit to execute
-            num_qubits (int): The number of qubits of the circuit
-            shots (int): The number of shots of the circuit
+            num_qubits (int): The number of qubits of the circuit            
+            shots (int): The number of shots of the circuit            
             user (str): The user that executed the circuit
-            circuit_name (str): The name of the circuit
-            maxDepth (int): The depth of the circuit
+            circuit_name (str): The name of the circuit            
+            maxDepth (int): The depth of the circuit            
             provider (str): The provider of the circuit
 
         Returns:
@@ -129,11 +129,11 @@ class SchedulerPolicies:
         Executes the circuit in the selected provider
 
         Args:
-            data (dict): The data of the circuit to execute
-            qb (list): The number of qubits per circuit
+            data (dict): The data of the circuit to execute            
+            qb (list): The number of qubits per circuit            
             shots (list): The number of shots per circuit
-            provider (str): The provider of the circuit
-            urls (list): The data of each circuit
+            provider (str): The provider of the circuit            
+            urls (list): The data of each circuit            
             machine (str): The machine to execute the circuit
 
         Raises:
@@ -147,8 +147,6 @@ class SchedulerPolicies:
         circuit = circuit + 'circuit = circ()'
 
         loc = {}
-
-        print(circuit)
 
         exec(circuit,globals(),loc) #Recuperar el objeto circuito que se obtiene, cuidado porque si el código del circuito no está controlado, esto es muy peligroso
         # Aquí se podría comprobar la mejor máquina para ejecutar el circuito
@@ -201,9 +199,9 @@ class SchedulerPolicies:
         Creates the circuit to execute based on the URLs
 
         Args:
-            urls (list): The data of each circuit
-            code (list): The code of the composed circuit
-            qb (list): The number of qubits of each individual circuit
+            urls (list): The data of each circuit            
+            code (list): The code of the composed circuit            
+            qb (list): The number of qubits of each individual circuit            
             provider (str): The provider of the circuit
         """
         composition_qubits = 0
@@ -269,9 +267,9 @@ class SchedulerPolicies:
 
         Args:
             queue (list): The waiting list
-            max_qubits (int): The maximum number of qubits
-            provider (str): The provider of the circuit
-            executeCircuit (Callable): The function to execute the circuit
+            max_qubits (int): The maximum number of qubits            
+            provider (str): The provider of the circuit            
+            executeCircuit (Callable): The function to execute the circuit            
             machine (str): The machine to execute the circuit
         """
         if len(queue) != 0:
@@ -310,10 +308,10 @@ class SchedulerPolicies:
         Sends the URLs to the server with the minimum number of shots and similar depth using the shots_depth policy
 
         Args:
-            queue (list): The waiting list
-            max_qubits (int): The maximum number of qubits
-            provider (str): The provider of the circuit
-            executeCircuit (Callable): The function to execute the circuit
+            queue (list): The waiting list            
+            max_qubits (int): The maximum number of qubits            
+            provider (str): The provider of the circuit            
+            executeCircuit (Callable): The function to execute the circuit            
             machine (str): The machine to execute the circuit
         """
         # Send the URLs to the server
@@ -353,9 +351,9 @@ class SchedulerPolicies:
 
         Args:
             queue (list): The waiting list
-            max_qubits (int): The maximum number of qubits
-            provider (str): The provider of the circuit
-            executeCircuit (Callable): The function to execute the circuit
+            max_qubits (int): The maximum number of qubits            
+            provider (str): The provider of the circuit            
+            executeCircuit (Callable): The function to execute the circuit            
             machine (str): The machine to execute the circuit
         """
         # Send the URLs to the server
@@ -388,10 +386,10 @@ class SchedulerPolicies:
         Sends the URLs to the server with the minimum number of shots using the shots policy
 
         Args:
-            queue (list): The waiting list
-            max_qubits (int): The maximum number of qubits
-            provider (str): The provider of the circuit
-            executeCircuit (Callable): The function to execute the circuit
+            queue (list): The waiting list            
+            max_qubits (int): The maximum number of qubits            
+            provider (str): The provider of the circuit            
+            executeCircuit (Callable): The function to execute the circuit            
             machine (str): The machine to execute the circuit
         """
         # Send the URLs to the server
@@ -428,10 +426,10 @@ class SchedulerPolicies:
         Sends the URLs to the server using the time policy
 
         Args:
-            queue (list): The waiting list
-            max_qubits (int): The maximum number of qubits
-            provider (str): The provider of the circuit
-            executeCircuit (Callable): The function to execute the circuit
+            queue (list): The waiting list            
+            max_qubits (int): The maximum number of qubits            
+            provider (str): The provider of the circuit            
+            executeCircuit (Callable): The function to execute the circuit            
             machine (str): The machine to execute the circuit
         """
         if len(queue) != 0:

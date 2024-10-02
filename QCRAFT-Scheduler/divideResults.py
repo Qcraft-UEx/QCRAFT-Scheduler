@@ -5,12 +5,12 @@ def proportionalAllocation(total_shots:int,newCounts:dict,usershots:list) -> dic
     Applies proportional allocation to the results of a circuit execution.
 
     Args:
-    total_shots (int): The total number of shots of the circuit execution.
-    newCounts (dict): The results of the circuit execution.
-    usershots (list): The number of shots to divide among the users.
+        total_shots (int): The total number of shots of the circuit execution.        
+        newCounts (dict): The results of the circuit execution.        
+        usershots (list): The number of shots to divide among the users.
     
     Returns:
-    dict: The results of the circuit execution divided among the users.
+        dict: The results of the circuit execution divided among the users.
     """
     proportions = {key: value / total_shots for key, value in newCounts.items()}
     # Calculate the number of shots to allocate to each key
@@ -24,12 +24,12 @@ def stratifiedSampling(total_shots:int,newCounts:dict,usershots:list) -> dict:
     Applies stratified sampling to the results of a circuit execution.
 
     Args:
-    total_shots (int): The total number of shots of the circuit execution.
-    newCounts (dict): The results of the circuit execution.
-    usershots (list): The number of shots to divide among the users.
+        total_shots (int): The total number of shots of the circuit execution.        
+        newCounts (dict): The results of the circuit execution.        
+        usershots (list): The number of shots to divide among the users.
     
     Returns:
-    dict: The results of the circuit execution divided among the users.
+        dict: The results of the circuit execution divided among the users.
     """
     keys = list(newCounts.keys())
     probabilities = [value / total_shots for value in newCounts.values()]
@@ -44,15 +44,15 @@ def divideResults(counts:dict, shots:list, provider:str, qb:list, users:list, ci
     Divides the results of a circuit execution among the users that executed it.
 
     Args:
-    counts (dict): The results of the circuit execution.
-    shots (list): The number of shots of each user.
-    provider (str): The provider of the circuit execution.
-    qb (list): The number of qubits of the circuit.
-    users (list): The users that executed the circuit.
-    circuit_name (list): The name of the circuit that was executed.
+        counts (dict): The results of the circuit execution.        
+        shots (list): The number of shots of each user.        
+        provider (str): The provider of the circuit execution.        
+        qb (list): The number of qubits of the circuit.        
+        users (list): The users that executed the circuit.        
+        circuit_name (list): The name of the circuit that was executed.
     
     Returns:
-    list: The results of the circuit execution divided among the users.
+        list: The results of the circuit execution divided among the users.
     """
     result = []
     for i in range(len(shots)):
