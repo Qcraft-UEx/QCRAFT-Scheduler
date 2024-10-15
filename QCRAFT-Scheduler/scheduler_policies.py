@@ -2,8 +2,8 @@ import json
 import requests
 from flask import request
 import re
-from executeCircuitIBM import runIBM, runIBM_save
-from executeCircuitAWS import runAWS, runAWS_save
+from executeCircuitIBM import runIBM, runIBM_save, code_to_circuit_ibm, obtain_machine
+from executeCircuitAWS import runAWS, runAWS_save, code_to_circuit_aws
 from ResettableTimer import ResettableTimer
 from threading import Thread
 from typing import Callable
@@ -70,16 +70,16 @@ class SchedulerPolicies:
             unscheduler (str): The URL of the unscheduler
         """
         self.app = app
-        self.time_limit_seconds = 30
-        self.max_qubits = 20
-        self.machine_ibm = 'local' # TODO maybe add machine as a parameter to the policy instead so it can be changed on each execution or just get the best machine just before the execution
+        self.time_limit_seconds = 15
+        self.max_qubits = 127
+        self.machine_ibm = 'ibm_brisbane' # TODO maybe add machine as a parameter to the policy instead so it can be changed on each execution or just get the best machine just before the execution
         self.machine_aws = 'local'
 
         self.services = {'time': Policy(self.send, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
-                        'shots': Policy(self.send_shots, self.max_qubits, self.time_limit_seconds*6, self.executeCircuit, self.machine_aws, self.machine_ibm),
-                        'depth': Policy(self.send_depth, self.max_qubits, self.time_limit_seconds*6, self.executeCircuit, self.machine_aws, self.machine_ibm),
-                        'shots_depth': Policy(self.send_shots_depth, self.max_qubits, self.time_limit_seconds*6, self.executeCircuit, self.machine_aws, self.machine_ibm),
-                        'shots_optimized': Policy(self.send_shots_optimized, self.max_qubits, self.time_limit_seconds*6, self.executeCircuit, self.machine_aws, self.machine_ibm)}
+                        'shots': Policy(self.send_shots, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
+                        'depth': Policy(self.send_depth, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
+                        'shots_depth': Policy(self.send_shots_depth, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
+                        'shots_optimized': Policy(self.send_shots_optimized, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm)}
         
         self.translator = f"http://{self.app.config['TRANSLATOR']}:{self.app.config['TRANSLATOR_PORT']}/code/"
         self.unscheduler = f"http://{self.app.config['HOST']}:{self.app.config['PORT']}/unscheduler"
@@ -139,16 +139,28 @@ class SchedulerPolicies:
         Raises:
             Exception: If an error occurs during the execution of the circuit
         """
-        circuit = 'def circ():\n'
-        f = json.loads(data)
-        for line in f['code']: #Construir el circuito según lo obtenido del traductor
-            circuit = circuit + '\t' + line + '\n'
 
-        circuit = circuit + 'circuit = circ()'
-
+        circuit = ''
+        for data in json.loads(data)['code']:
+            circuit = circuit + data + '\n'
+        
         loc = {}
+        if provider == 'ibm':
+            loc['circuit'] = code_to_circuit_ibm(circuit)
+        else:
+            loc['circuit'] = code_to_circuit_aws(circuit)
 
-        exec(circuit,globals(),loc) #Recuperar el objeto circuito que se obtiene, cuidado porque si el código del circuito no está controlado, esto es muy peligroso
+        #circuit = 'def circ():\n'
+        #f = json.loads(data)
+        #for line in f['code']: #Construir el circuito según lo obtenido del traductor
+        #    circuit = circuit + '\t' + line + '\n'
+#
+        #circuit = circuit + 'circuit = circ()'
+#
+        #print(circuit)
+#
+        #loc = {}
+        #exec(circuit,globals(),loc) #Recuperar el objeto circuito que se obtiene, cuidado porque si el código del circuito no está controlado, esto es muy peligroso
         # Aquí se podría comprobar la mejor máquina para ejecutar el circuito
         try:
             if provider == 'ibm':
@@ -251,6 +263,7 @@ class SchedulerPolicies:
             code.insert(0,"from numpy import pi")
             code.insert(0,"import numpy as np")
             code.insert(0,"from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit")
+            code.insert(0,"from qiskit.circuit.library import MCXGate, MCMT, XGate, YGate, ZGate")
             code.append("return circuit")
         # Para hacer urls y circuitos quizas sea posible hacer que las urls tengan en mismo formato de salida del traductor y se pueda hacer un solo metodo para ambos. Que no se sepa cuando salgan del traductor si es un circuito o una url, que se pueda hacer el mismo tratamiento a ambos
         elif provider == 'aws':

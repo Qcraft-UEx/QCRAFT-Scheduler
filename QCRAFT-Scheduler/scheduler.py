@@ -52,7 +52,7 @@ class Scheduler:
         self.app.config['DB'] = os.getenv('DB')
         self.app.config['DB_PORT'] = os.getenv('DB_PORT')
         
-        self.max_qubits = 29
+        self.max_qubits = 127
         
         mongo_uri = f"mongodb://{os.getenv('DB_USER')}:{os.getenv('DB_PASSWORD')}@{self.app.config['DB']}:{self.app.config['DB_PORT']}/"
         self.client = MongoClient(mongo_uri)
@@ -270,7 +270,12 @@ class Scheduler:
         user = uuid.uuid4().int
         #user = request.headers.get('X-Forwarded-For', request.remote_addr)
 
-        print(url)
+        document = {
+            '_id': str(user),
+            'circuit': url
+        }
+        self.collection.insert_one(document)
+
         # Parse the URL and extract the fragment
         try:
             fragment = urlparse(url).fragment
@@ -297,12 +302,12 @@ class Scheduler:
             # Count the number of qubits in the circuit
             for provider_name in provider:
                 if provider_name == 'ibm':
-                    num_qubits = max(len(col) for col in circuit['cols'] if 1 not in col)
+                    num_qubits = max(len(col) for col in circuit['cols'])
                     if shots is None:
                         shots = ibmShots
                     providers['ibm'] = shots
                 elif provider_name == 'aws': #In AWS Measure instruction does not exist, if the Measure instruction is in the url, that number of measure qubits are removed
-                    num_qubits = max(len(col) for col in circuit['cols'] if 'Measure' not in col and 1 not in col)
+                    num_qubits = max(len(col) for col in circuit['cols'] if 'Measure' not in col)
                     if shots is None:
                         shots = awsShots
                     providers['aws'] = shots
@@ -312,18 +317,17 @@ class Scheduler:
 
             for provider in providers: #Iterate through the providers to add the elements to the specific provider queue in case the circuit needs to be executed on multiple providers
                 shots = providers[provider]
-
                 if self.transpilation_machine == 'local':
                     maxDepth = max(sum(1 for j in circuit['cols'] if i < len(j) and j[i] not in {1, 'Measure'}) for i in range(num_qubits))
                 else:
                     try:
                         x = requests.post(self.translator+provider, json = {'url':url})
-                        data = json.loads(x.text)
+                        data = json.loads(x.text)                        
                         code = ""
                         for elem in data['code']:
                             code += elem + '\n'
                         if provider == 'ibm':
-                            circ = code_to_circuit_ibm(code)
+                            circ = code_to_circuit_ibm(code) #check this method because if a lot of circuits enter at the same time, it fails
                             maxDepth = get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
                         elif provider == 'aws':
                             #TODO
@@ -331,10 +335,10 @@ class Scheduler:
                     except:
                         print("Error in the request to the translator")
                     # TODO instead, parse it into a circuit and transpile it to get the depth (circuit.depth)
-                
                 self.select_policy(url, num_qubits, shots, user, url, maxDepth, provider, policy)
     
-        return "Your id is "+str(user), 200  # Return a response
+        return str(user), 200  #return the id
+        #return "Your id is "+str(user), 200  # Return a response
     
     def store_url_circuit(self) -> tuple:
         """
@@ -366,6 +370,12 @@ class Scheduler:
 
         user = uuid.uuid4().int
         #user = request.headers.get('X-Forwarded-For', request.remote_addr)
+        document = {
+        '_id': str(user),
+        'circuit': url
+        }
+        with self.result_lock:
+            self.collection.insert_one(document)
 
         # URL is a raw GitHub url, get its content
         try:
@@ -480,7 +490,7 @@ class Scheduler:
 
         self.select_policy(circuit, num_qubits, shots, user, circuit_name, maxDepth, provider, policy)
 
-        return "Your id is "+str(user), 200
+        return str(user), 200
 
     
     def sendResults(self) -> tuple:

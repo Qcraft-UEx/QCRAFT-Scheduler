@@ -6,12 +6,17 @@ from qiskit import transpile
 import qiskit.providers
 from qiskit_ibm_runtime import QiskitRuntimeService
 from qiskit import QuantumCircuit
+from qiskit.circuit.library import MCXGate
 from qiskit_aer import AerSimulator
 import json
 import os
 import qiskit
 import numpy as np
 import re
+import threading
+
+
+transpile_lock = threading.Lock()
 
 def load_account_ibm() -> QiskitRuntimeService:
     """
@@ -38,6 +43,7 @@ def obtain_machine(service:QiskitRuntimeService ,machine:str) -> qiskit.provider
     # Load your IBM Quantum account
     backend = service.backend(machine)
     return backend
+
 
 def code_to_circuit_ibm(code_str:str) -> qiskit.QuantumCircuit: #Inverse parser to get the circuit object from the string
     """
@@ -88,6 +94,24 @@ def code_to_circuit_ibm(code_str:str) -> qiskit.QuantumCircuit: #Inverse parser 
                         else: #For barrier(qreg[0], qreg[1], ...)
                             qubits = [qreg[int(arg.split('[')[1].strip(']').split('+')[0]) + int(arg.split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in arg else int(arg.split('[')[1].strip(']'))] for arg in args if '[' in arg]
                             circuit.barrier(qubits)
+                    elif gate_name == "append":
+                        gate_type = args[0]
+                        qubits = [qreg[int(re.search(r'\[(\d+)\]', arg).group(1))] for arg in args[1:] if '[' in arg]
+                        control_qubits = qubits[:-1]
+                        target_qubit = qubits[-1]
+                        if gate_type == 'mc_x_gate':
+                            mcx = MCXGate(len(control_qubits))
+                            circuit.append(mcx, control_qubits + [target_qubit])
+                        elif gate_type == 'mc_y_gate':
+                            circuit.sdg(target_qubit)
+                            mcx = MCXGate(len(control_qubits))
+                            circuit.append(mcx, control_qubits + [target_qubit])
+                            circuit.s(target_qubit)
+                        elif gate_type == 'mc_z_gate':
+                            circuit.h(target_qubit)
+                            mcx = MCXGate(len(control_qubits))
+                            circuit.append(mcx, control_qubits + [target_qubit])
+                            circuit.h(target_qubit)
                     else:
                         qubits = [qreg[int(arg.split('[')[1].strip(']').split('+')[0]) + int(arg.split('[')[1].strip(']').split('+')[1].strip(') ')) if '+' in arg else int(arg.split('[')[1].strip(']'))] for arg in args if '[' in arg]
                         params = [eval(arg, {"__builtins__": None, "np": np}, {}) for param_str in args if '[' not in param_str for arg in param_str.split(',')]
@@ -113,7 +137,9 @@ def get_transpiled_circuit_depth_ibm(circuit:QuantumCircuit, backend:qiskit.prov
         int: The depth of the transpiled circuit.
     """
     # Load your IBM Quantum account
-    qc_basis = transpile(circuit, backend)
+    with transpile_lock:
+        qc_basis = transpile(circuit, backend=backend)
+
     return qc_basis.depth()
 
 
@@ -140,9 +166,10 @@ def runIBM(machine:str, circuit:QuantumCircuit, shots:int) -> dict:
         return counts
     else:
         # Load your IBM Quantum account
+        
         service = QiskitRuntimeService()
         backend = service.backend(machine)
-        qc_basis = transpile(circuit, backend)
+        qc_basis = transpile(circuit, backend=backend)
         x = int(shots)
         job = backend.run(qc_basis, shots=x) 
         result = job.result()
@@ -166,7 +193,7 @@ def retrieve_result_ibm(id) -> dict:
     counts = result.get_counts()
     return counts
 
-def runIBM_save(machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list,) -> dict:
+def runIBM_save(machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit_number:list, circuit_names:list) -> dict:
     """
     Executes a circuit in the IBM cloud and saves the task id if the machine crashes.
 
@@ -191,9 +218,11 @@ def runIBM_save(machine:str, circuit:QuantumCircuit, shots:int,users:list, qubit
         return counts
     else:
         # Load your IBM Quantum account
+        
         service = QiskitRuntimeService()
         backend = service.backend(machine)
-        qc_basis = transpile(circuit, backend)
+        with transpile_lock:
+            qc_basis = transpile(circuit, backend=backend)
         x = int(shots)
         job = backend.run(qc_basis, shots=x) 
 
