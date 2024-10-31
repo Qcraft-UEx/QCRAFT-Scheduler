@@ -2,7 +2,7 @@ import json
 import requests
 from flask import request
 import re
-from executeCircuitIBM import runIBM, runIBM_save, code_to_circuit_ibm, obtain_machine
+from executeCircuitIBM import executeCircuitIBM
 from executeCircuitAWS import runAWS, runAWS_save, code_to_circuit_aws
 from ResettableTimer import ResettableTimer
 from threading import Thread
@@ -70,10 +70,11 @@ class SchedulerPolicies:
             unscheduler (str): The URL of the unscheduler
         """
         self.app = app
-        self.time_limit_seconds = 15
+        self.time_limit_seconds = 15*60
         self.max_qubits = 127
         self.machine_ibm = 'ibm_brisbane' # TODO maybe add machine as a parameter to the policy instead so it can be changed on each execution or just get the best machine just before the execution
         self.machine_aws = 'local'
+        self.executeCircuitIBM = executeCircuitIBM()
 
         self.services = {'time': Policy(self.send, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
                         'shots': Policy(self.send_shots, self.max_qubits, self.time_limit_seconds, self.executeCircuit, self.machine_aws, self.machine_ibm),
@@ -146,9 +147,10 @@ class SchedulerPolicies:
         
         loc = {}
         if provider == 'ibm':
-            loc['circuit'] = code_to_circuit_ibm(circuit)
+            loc['circuit'] = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
         else:
             loc['circuit'] = code_to_circuit_aws(circuit)
+
 
         #circuit = 'def circ():\n'
         #f = json.loads(data)
@@ -167,7 +169,7 @@ class SchedulerPolicies:
                 #backend = least_busy_backend_ibm(sum(qb))
                 # TODO escoger el backend más adecuado para el circuito
                 #counts = runIBM(self.machine_ibm,loc['circuit'],max(shots)) #Ejecutar el circuito y obtener el resultado
-                counts = runIBM_save(machine,loc['circuit'],max(shots),[url[3] for url in urls],qb,[url[4] for url in urls]) #Ejecutar el circuito y obtener el resultado
+                counts = self.executeCircuitIBM.runIBM_save(machine,loc['circuit'],max(shots),[url[3] for url in urls],qb,[url[4] for url in urls]) #Ejecutar el circuito y obtener el resultado
             else:
                 counts = runAWS_save(machine,loc['circuit'],max(shots),[url[3] for url in urls],qb,[url[4] for url in urls],'') #Ejecutar el circuito y obtener el resultado
         except Exception as e:
@@ -472,3 +474,6 @@ class SchedulerPolicies:
             str: The IBM machine of the scheduler
         """
         return self.machine_ibm
+    
+    def get_ibm(self):
+        return self.executeCircuitIBM

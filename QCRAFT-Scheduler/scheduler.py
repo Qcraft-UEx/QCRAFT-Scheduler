@@ -10,7 +10,7 @@ import logging
 import uuid
 import re
 from scheduler_policies import SchedulerPolicies
-from executeCircuitIBM import retrieve_result_ibm, code_to_circuit_ibm, get_transpiled_circuit_depth_ibm, load_account_ibm, obtain_machine
+from executeCircuitIBM import executeCircuitIBM
 from executeCircuitAWS import retrieve_result_aws, code_to_circuit_aws
 import os
 from threading import Thread, Lock
@@ -64,10 +64,12 @@ class Scheduler:
 
         self.scheduler_policies = SchedulerPolicies(self.app)
 
-        self.transpilation_machine = self.scheduler_policies.get_ibm_machine()
-        self.service = load_account_ibm()
+        self.executeCircuitIBM = self.scheduler_policies.get_ibm()
 
-        if self.transpilation_machine != 'local': self.transpilation_backend = obtain_machine(self.service, self.transpilation_machine)
+        self.transpilation_machine = self.scheduler_policies.get_ibm_machine()
+        self.service = self.executeCircuitIBM.load_account_ibm()
+
+        if self.transpilation_machine != 'local': self.transpilation_backend = self.executeCircuitIBM.obtain_machine(self.service, self.transpilation_machine)
 
         self.app.route('/url', methods=['POST'])(self.store_url)
         self.app.route('/circuit', methods=['POST'])(self.store_url_circuit)
@@ -111,7 +113,7 @@ class Scheduler:
         shots = fdata[id][2]
         provider = fdata[id][3]
         if provider == 'ibm':
-            counts = retrieve_result_ibm(id) 
+            counts = self.executeCircuitIBM.retrieve_result_ibm(id) 
         elif provider == 'aws':
             counts = retrieve_result_aws(id)
         circuit_names = fdata[id][4]
@@ -327,8 +329,8 @@ class Scheduler:
                         for elem in data['code']:
                             code += elem + '\n'
                         if provider == 'ibm':
-                            circ = code_to_circuit_ibm(code) #check this method because if a lot of circuits enter at the same time, it fails
-                            maxDepth = get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
+                            circ = self.executeCircuitIBM.code_to_circuit_ibm(code) #check this method because if a lot of circuits enter at the same time, it fails
+                            maxDepth = self.executeCircuitIBM.get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
                         elif provider == 'aws':
                             #TODO
                             maxDepth = max(sum(1 for j in circuit['cols'] if i < len(j) and j[i] not in {1, 'Measure'}) for i in range(num_qubits))
@@ -397,7 +399,7 @@ class Scheduler:
         importIBM = next((line for line in lines if 'qiskit' in line), None)
 
         if importIBM:
-            circ = code_to_circuit_ibm(circuit)
+            circ = self.executeCircuitIBM.code_to_circuit_ibm(circuit)
             # Parse the circuit and extract the number of qubits
             num_qubits_line = next((line.split('#')[0].strip() for line in lines if '= QuantumRegister(' in line.split('#')[0]), None)
             num_qubits = int(num_qubits_line.split('QuantumRegister(')[1].split(',')[0].strip(')')) if num_qubits_line else None
@@ -438,7 +440,7 @@ class Scheduler:
             if self.transpilation_machine == 'local':   
                 maxDepth = max(qubits) #Get the max number of gates on a qubit
             else:
-                maxDepth = get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
+                maxDepth = self.executeCircuitIBM.get_transpiled_circuit_depth_ibm(circ, self.transpilation_backend)
             provider = 'ibm'
         
         elif importAWS:
