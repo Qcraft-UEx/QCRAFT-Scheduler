@@ -17,7 +17,6 @@ def add_missing_keys(d1, d2):
         if key not in d1:
             d1[key] = 0
 
-    # Sort keys by name and return the sorted dictionaries
     d1 = dict(sorted(d1.items()))
     d2 = dict(sorted(d2.items()))
     return d1, d2
@@ -31,23 +30,16 @@ hellinger_results = []
 composed = []
 individual = []
 
-# Read and append JSON objects from 'mutants-1570.json'
 with open('datasets/mutants-1344.json') as f:
     for line in f:
         elem = json.loads(line.strip())
         composed.append(elem)
 
-# Read and append JSON objects from 'mutants1570-simulator.json'
 with open('datasets/mutants1344-simulator.json') as f:
     for line in f:
         elem = json.loads(line.strip())
         individual.append(elem)
 
-# Sort the lists by the 'circuit' property
-#composed.sort(key=lambda x: x['circuit'])
-#individual.sort(key=lambda x: x['circuit'])
-
-# Extract the 'result' and 'value' properties after sorting
 composed_results = [elem['value'] for elem in composed]
 individual_values = [elem['value'] for elem in individual]
 
@@ -66,7 +58,6 @@ for elem in composed:
         print(f'Error: The circuits {composed_elem_circuit} and {individual_elem_circuit} do not match on position {i}')
         break
     
-    #check the hellinger of the element with both indivuduals and get the minimum
     composed_elem_1, individual_elem_1 = add_missing_keys(composed_elem, individual_elem)
 
     hellinger_data_1 = hellinger(dict_to_prob(composed_elem_1), dict_to_prob(individual_elem_1))
@@ -74,22 +65,20 @@ for elem in composed:
 
     i += 1
 
-#line plot
 figsize = (20,8)
 label_fontsize = 25
 plt.figure(figsize=figsize)
 plt.plot(hellinger_results)
 plt.ylabel('Hellinger distance', fontsize=label_fontsize)
-plt.xlabel('Mutant circuits of the first case of study',fontsize=label_fontsize)
+plt.xlabel('Mutant circuits of the third case of study',fontsize=label_fontsize)
 plt.xlim(0,len(hellinger_results)-1)
 plt.xticks(fontsize=label_fontsize)
 plt.yticks(fontsize=label_fontsize)
 plt.ylim(0,1)
 plt.savefig('plot/mutants-1344/hellinger_results_1.png')
 
-# scatter
 plt.figure(figsize=figsize)
 plt.scatter(range(len(hellinger_results)), hellinger_results)
 plt.ylabel('Hellinger distance',fontsize=label_fontsize)
-plt.xlabel('Mutant circuits of the first case of study',fontsize=label_fontsize)
+plt.xlabel('Mutant circuits of the third case of study',fontsize=label_fontsize)
 plt.savefig('plot/mutants-1344/hellinger_results_scatter_1.png')
