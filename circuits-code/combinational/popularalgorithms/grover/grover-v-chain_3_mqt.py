@@ -1,7 +1,7 @@
 from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
 import numpy as np
 
-qreg_q = QuantumRegister(2, 'q')
+qreg_q = QuantumRegister(3, 'q')
 creg_meas = ClassicalRegister(3, 'meas')
 circuit = QuantumCircuit(qreg_q, creg_meas)
 
