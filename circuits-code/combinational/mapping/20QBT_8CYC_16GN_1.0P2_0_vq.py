@@ -1,0 +1,37 @@
+from qiskit import QuantumRegister, ClassicalRegister, QuantumCircuit
+import numpy as np
+
+qreg_q = QuantumRegister(20, 'q')
+creg_c = ClassicalRegister(20, 'c')
+
+circuit = QuantumCircuit(qreg_q)
+
+circuit.cx(qreg_q[0], qreg_q[13])
+circuit.cx(qreg_q[17], qreg_q[18])
+circuit.t(qreg_q[10])
+circuit.x(qreg_q[9])
+circuit.cx(qreg_q[13], qreg_q[2])
+circuit.cx(qreg_q[19], qreg_q[0])
+circuit.z(qreg_q[13])
+circuit.cx(qreg_q[13], qreg_q[12])
+circuit.y(qreg_q[12])
+circuit.h(qreg_q[12])
+circuit.cx(qreg_q[14], qreg_q[9])
+circuit.cx(qreg_q[19], qreg_q[10])
+circuit.y(qreg_q[12])
+circuit.h(qreg_q[11])
+circuit.cx(qreg_q[12], qreg_q[13])
+circuit.cx(qreg_q[14], qreg_q[6])
+
+circuit.measure(qreg_q[0], creg_c[0])
+circuit.measure(qreg_q[2], creg_c[2])
+circuit.measure(qreg_q[6], creg_c[6])
+circuit.measure(qreg_q[9], creg_c[9])
+circuit.measure(qreg_q[10], creg_c[10])
+circuit.measure(qreg_q[11], creg_c[11])
+circuit.measure(qreg_q[12], creg_c[12])
+circuit.measure(qreg_q[13], creg_c[13])
+circuit.measure(qreg_q[14], creg_c[14])
+circuit.measure(qreg_q[17], creg_c[17])
+circuit.measure(qreg_q[18], creg_c[18])
+circuit.measure(qreg_q[19], creg_c[19])
