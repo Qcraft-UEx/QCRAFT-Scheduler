@@ -4,8 +4,8 @@ from qiskit import transpile
 from qiskit_ibm_provider import least_busy, IBMProvider
 import numpy as np
 
-qreg_q = QuantumRegister(4, 'q')
-creg_c = ClassicalRegister(4, 'c')
+qreg_q = QuantumRegister(3, 'q')
+creg_c = ClassicalRegister(3, 'c')
 circuit = QuantumCircuit(qreg_q, creg_c)
 
 circuit.h(qreg_q[2])
